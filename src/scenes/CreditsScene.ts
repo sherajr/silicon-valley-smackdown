@@ -21,8 +21,9 @@ export class CreditsScene extends Phaser.Scene {
     const lines = [
       'Silicon Valley Smackdown',
       '',
-      'Design, code, pixel art, music, and sound: built for this project,',
-      'entirely original and generated in-engine -- no external assets.',
+      'Design, code, art, music, and sound: built for this project and',
+      'generated in-engine. The one exception: Settings lets you play a',
+      'local music file of your own for the current session instead.',
       '',
       'Fighters: Hunter, Kevin, Al, Priya, Chad, and Elon.',
       'Stages: Castro Street Coffee Clash, Sand Hill Road Showdown,',
