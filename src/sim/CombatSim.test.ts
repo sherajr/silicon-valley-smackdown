@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CombatSim } from './CombatSim';
 import { localBoxToWorld } from './collision';
 import { HUNTER } from '../data/characters/hunter';
+import { ELON_BOSS } from '../data/characters/elon';
 import { neutralFrameInput, type PlayerFrameInput } from './types';
 import { GPU_DAMAGE_MULT, MAX_HYPE } from './constants';
 
@@ -200,6 +201,39 @@ describe('CombatSim basics', () => {
     for (let i = 0; i < 10; i++) sim.step(inputs(), inputs());
     expect(sim.p1.health).toBeLessThan(h1);
     expect(sim.p2.health).toBeLessThan(h2);
+  });
+
+  it('enters Crunch Mode exactly once when the boss crosses the phase health threshold', () => {
+    const sim = new CombatSim({ p1Def: HUNTER, p2Def: ELON_BOSS, powerupsEnabled: false, seed: 1 });
+    sim.p1.state = 'idle';
+    sim.p1.stateTimer = 0;
+    sim.p2.state = 'idle';
+    sim.p2.stateTimer = 0;
+    sim.p1.x = 150;
+    sim.p2.x = 176;
+    // Just above the 45% threshold; one more scaled hit should cross it.
+    sim.p2.health = ELON_BOSS.maxHealth * 0.46;
+    expect(sim.p2.isCrunchMode).toBe(false);
+    sim.p1.activeMove = { def: HUNTER.moves.basic1, frame: 3, lastHitFrame: new Map(), isSuper: false };
+    sim.p1.state = 'attack';
+    let crunchEvents = 0;
+    for (let i = 0; i < 6; i++) {
+      const events = sim.step(inputs(), inputs());
+      crunchEvents += events.filter((e) => e.type === 'crunchModeEntered').length;
+    }
+    expect(sim.p2.isCrunchMode).toBe(true);
+    expect(crunchEvents).toBe(1);
+
+    // Further hits must not re-fire the event or heal the boss back out of Crunch Mode.
+    sim.p1.activeMove = { def: HUNTER.moves.basic1, frame: 3, lastHitFrame: new Map(), isSuper: false };
+    sim.p1.state = 'attack';
+    let moreCrunchEvents = 0;
+    for (let i = 0; i < 6; i++) {
+      const events = sim.step(inputs(), inputs());
+      moreCrunchEvents += events.filter((e) => e.type === 'crunchModeEntered').length;
+    }
+    expect(moreCrunchEvents).toBe(0);
+    expect(sim.p2.isCrunchMode).toBe(true);
   });
 
   it('ends the round on KO exactly once and freezes further state changes', () => {
