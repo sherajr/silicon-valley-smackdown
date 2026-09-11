@@ -13,9 +13,11 @@ import { labelForBinding } from '../input/bindings';
 
 const GRID_COLS = 3;
 const TILE_W = 70;
-const TILE_H = 66;
+const TILE_H = 58;
 const GRID_ORIGIN_X = BASE_WIDTH / 2 - TILE_W * 1.5;
-const GRID_ORIGIN_Y = 46;
+const GRID_ORIGIN_Y = 40;
+const PREVIEW_Y = 246;
+const PREVIEW_SCALE = 1.35;
 
 const P2_TINT = 0x99c2ff;
 
@@ -73,14 +75,14 @@ export class CharacterSelectScene extends Phaser.Scene {
       if (locked) spr.setTint(0x2a2a33);
       this.tileSprites.push(spr);
 
-      this.add.text(x, y + 22, def.name.toUpperCase(), { fontFamily: 'monospace', fontSize: '7px', color: locked ? '#4a4a55' : '#d8d8ee' }).setOrigin(0.5, 0.5);
+      this.add.text(x, y + 19, def.name.toUpperCase(), { fontFamily: 'monospace', fontSize: '7px', color: locked ? '#4a4a55' : '#d8d8ee' }).setOrigin(0.5, 0.5);
 
       const lockText = this.add
         .text(x, y - 4, locked ? 'LOCKED' : '', { fontFamily: 'monospace', fontSize: '7px', color: '#ff6b6b' })
         .setOrigin(0.5, 0.5);
       this.lockTexts.push(lockText);
       if (locked) {
-        this.add.text(x, y + 30, 'Beat Arcade', { fontFamily: 'monospace', fontSize: '6px', color: '#8a8a99' }).setOrigin(0.5, 0.5);
+        this.add.text(x, y + 26, 'Beat Arcade', { fontFamily: 'monospace', fontSize: '6px', color: '#8a8a99' }).setOrigin(0.5, 0.5);
       }
     });
 
@@ -88,9 +90,9 @@ export class CharacterSelectScene extends Phaser.Scene {
     this.p2Cursor = this.add.rectangle(0, 0, TILE_W - 10, TILE_H - 10).setStrokeStyle(2, 0x4fd0ff);
     this.p2Cursor.setVisible(this.mode === 'versus');
 
-    this.infoText = this.add.text(20, 190, '', { fontFamily: 'monospace', fontSize: '8px', color: '#c8c8d8', lineSpacing: 3 });
+    this.infoText = this.add.text(180, 195, '', { fontFamily: 'monospace', fontSize: '8px', color: '#c8c8d8', lineSpacing: 3 });
     this.statusText = this.add
-      .text(BASE_WIDTH / 2, BASE_HEIGHT - 20, '', { fontFamily: 'monospace', fontSize: '8px', color: '#8a8a99' })
+      .text(BASE_WIDTH / 2, BASE_HEIGHT - 10, '', { fontFamily: 'monospace', fontSize: '8px', color: '#8a8a99' })
       .setOrigin(0.5, 0.5);
 
     this.refreshCursors();
@@ -129,16 +131,16 @@ export class CharacterSelectScene extends Phaser.Scene {
     this.previewP1?.destroy();
     this.previewP1 = null;
     const id1 = this.roster[this.p1Index];
-    this.previewP1 = new FighterView(this, CHARACTERS[id1], 130, 230);
-    this.previewP1.sprite.setScale(1.6);
+    this.previewP1 = new FighterView(this, CHARACTERS[id1], 130, PREVIEW_Y);
+    this.previewP1.sprite.setScale(PREVIEW_SCALE);
 
     if (this.mode === 'versus') {
       this.previewP2?.destroy();
       this.previewP2 = null;
       const id2 = this.roster[this.p2Index];
       const mirror = id1 === id2;
-      this.previewP2 = new FighterView(this, CHARACTERS[id2], BASE_WIDTH - 130, 230, mirror ? { tintOverride: P2_TINT } : undefined);
-      this.previewP2.sprite.setScale(1.6);
+      this.previewP2 = new FighterView(this, CHARACTERS[id2], BASE_WIDTH - 130, PREVIEW_Y, mirror ? { tintOverride: P2_TINT } : undefined);
+      this.previewP2.sprite.setScale(PREVIEW_SCALE);
       this.previewP2.sprite.setFlipX(true);
     }
 

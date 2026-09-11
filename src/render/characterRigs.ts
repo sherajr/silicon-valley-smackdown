@@ -24,8 +24,10 @@ import {
   victoryPose,
   wakeupPose,
   walkFrames,
+  withHairStyle,
   withProp,
   type Build,
+  type HairStyle,
 } from './poses';
 import type { CharacterDef, MoveKind } from '../sim/types';
 
@@ -57,24 +59,28 @@ function withStandingProp(base: Pose, prop: RectStyle | null): Pose {
 
 interface RigRecipe {
   signatureProp: (b: Build) => RectStyle | null;
+  hairStyle: HairStyle;
   moves: (b: Build, sigProp: RectStyle | null) => Record<MoveKind, Pose[]>;
 }
 
 function buildFrameSet(def: CharacterDef, recipe: RigRecipe): CharacterFrameSet {
   const b = buildFor(def.width, def.height);
   const sigProp = recipe.signatureProp(b);
+  const hair = (poses: Pose[]) => poses.map((p) => withHairStyle(p, recipe.hairStyle));
+  const moves = recipe.moves(b, sigProp);
+  for (const kind of Object.keys(moves) as MoveKind[]) moves[kind] = hair(moves[kind]);
   return {
-    idle: withSignatureProp(idleFrames(b), sigProp),
-    walk: withSignatureProp(walkFrames(b), sigProp),
-    jump: [jumpPose(b)],
-    crouch: [withStandingProp(crouchPose(b), sigProp)],
-    block: [blockPose(b)],
-    hitstun: [hitstunPose(b)],
-    knockdown: [knockdownPose(b)],
-    wakeup: [wakeupPose(b)],
-    victory: [victoryPose(b)],
-    ko: [koPose(b)],
-    moves: recipe.moves(b, sigProp),
+    idle: hair(withSignatureProp(idleFrames(b), sigProp)),
+    walk: hair(withSignatureProp(walkFrames(b), sigProp)),
+    jump: hair([jumpPose(b)]),
+    crouch: hair([withStandingProp(crouchPose(b), sigProp)]),
+    block: hair([blockPose(b)]),
+    hitstun: hair([hitstunPose(b)]),
+    knockdown: hair([knockdownPose(b)]),
+    wakeup: hair([wakeupPose(b)]),
+    victory: hair([victoryPose(b)]),
+    ko: hair([koPose(b)]),
+    moves,
   };
 }
 
@@ -88,6 +94,7 @@ const ROCKET: (b: Build) => RectStyle = (b) => propAt(b, 7, 16, '#c7ccd3');
 export function hunterFrames(def: CharacterDef): CharacterFrameSet {
   return buildFrameSet(def, {
     signatureProp: IPAD,
+    hairStyle: 'short',
     moves: (b, prop) => ({
       basic1: jabArchetype(b, null),
       basic2: hookArchetype(b, null),
@@ -106,6 +113,7 @@ export function hunterFrames(def: CharacterDef): CharacterFrameSet {
 export function kevinFrames(def: CharacterDef): CharacterFrameSet {
   return buildFrameSet(def, {
     signatureProp: BRIEFCASE,
+    hairStyle: 'slick',
     moves: (b, prop) => ({
       basic1: jabArchetype(b, null),
       basic2: hookArchetype(b, null),
@@ -124,6 +132,7 @@ export function kevinFrames(def: CharacterDef): CharacterFrameSet {
 export function alFrames(def: CharacterDef): CharacterFrameSet {
   return buildFrameSet(def, {
     signatureProp: BOTTLE,
+    hairStyle: 'messy',
     moves: (b, prop) => ({
       basic1: jabArchetype(b, null),
       basic2: hookArchetype(b, null),
@@ -142,6 +151,7 @@ export function alFrames(def: CharacterDef): CharacterFrameSet {
 export function priyaFrames(def: CharacterDef): CharacterFrameSet {
   return buildFrameSet(def, {
     signatureProp: CLIPBOARD,
+    hairStyle: 'ponytail',
     moves: (b, prop) => ({
       basic1: jabArchetype(b, null),
       basic2: jabArchetype(b, prop),
@@ -160,6 +170,7 @@ export function priyaFrames(def: CharacterDef): CharacterFrameSet {
 export function chadFrames(def: CharacterDef): CharacterFrameSet {
   return buildFrameSet(def, {
     signatureProp: TERM_SHEET,
+    hairStyle: 'swept',
     moves: (b, prop) => ({
       basic1: jabArchetype(b, null),
       basic2: hookArchetype(b, prop),
@@ -178,6 +189,7 @@ export function chadFrames(def: CharacterDef): CharacterFrameSet {
 export function elonFrames(def: CharacterDef): CharacterFrameSet {
   return buildFrameSet(def, {
     signatureProp: () => null,
+    hairStyle: 'founder',
     moves: (b) => ({
       basic1: jabArchetype(b, null),
       basic2: hookArchetype(b, null),

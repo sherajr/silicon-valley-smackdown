@@ -53,13 +53,55 @@ export function basePose(b: Build): Pose {
   };
 }
 
-function clone(p: Pose): Pose {
+export function clone(p: Pose): Pose {
   return JSON.parse(JSON.stringify(p));
 }
 
 export function withProp(p: Pose, prop: RectStyle | null): Pose {
   const next = clone(p);
   next.prop = prop;
+  return next;
+}
+
+export type HairStyle = 'short' | 'slick' | 'messy' | 'ponytail' | 'swept' | 'founder';
+
+/** Reshapes the hair rect (silhouette only, not just color) so heads read as distinct per character. */
+export function withHairStyle(p: Pose, style: HairStyle): Pose {
+  const next = clone(p);
+  const h = next.hair;
+  const originalH = h.h;
+  switch (style) {
+    case 'short': // Hunter: a little tousled and tall
+      h.h *= 1.35;
+      h.y -= h.h - originalH; // grow upward only, never further down over the face
+      break;
+    case 'slick': // Kevin: neat, thin, close to the head
+      h.h *= 0.55;
+      break;
+    case 'messy': // Al: wide, uneven, overflowing the head
+      h.w *= 1.3;
+      h.x -= h.w * 0.1;
+      h.h *= 1.25;
+      h.y -= h.h - originalH + originalH * 0.15; // grow upward, with a little extra clearance over the eyes
+      break;
+    case 'ponytail': // Priya: swept back and trailing behind
+      h.h *= 0.7;
+      h.x -= h.w * 0.55;
+      h.w *= 1.45;
+      break;
+    case 'swept': // Chad: longer, swept back off the forehead
+      h.h *= 0.85;
+      h.w *= 1.15;
+      h.x -= h.w * 0.05;
+      break;
+    case 'founder': { // Elon: a bit fuller on top
+      const before = h.h;
+      h.h *= 1.15;
+      h.y -= h.h - before;
+      h.w *= 1.05;
+      break;
+    }
+  }
   return next;
 }
 
@@ -143,6 +185,7 @@ export function hitstunPose(b: Build): Pose {
   p.armBack.x -= 3;
   p.armFront.x -= 2;
   p.head.x -= 3;
+  p.eyesClosed = true;
   return p;
 }
 
@@ -163,6 +206,7 @@ export function knockdownPose(b: Build): Pose {
   p.armFront.y += flatten * 0.9;
   p.armBack.h *= 0.5;
   p.armFront.h *= 0.5;
+  p.eyesClosed = true;
   return p;
 }
 
@@ -181,7 +225,9 @@ export function victoryPose(b: Build): Pose {
 }
 
 export function koPose(b: Build): Pose {
-  return knockdownPose(b);
+  const p = knockdownPose(b);
+  p.eyesClosed = true;
+  return p;
 }
 
 // ---------------------------------------------------------------------

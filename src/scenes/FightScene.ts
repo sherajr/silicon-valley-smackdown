@@ -21,6 +21,8 @@ import { hurtboxFor } from '../sim/FighterRuntime';
 
 const ARENA_OFFSET_X = 0;
 const MAX_STEPS_PER_FRAME = 6;
+/** Fighters render a bit larger than their collision box for on-screen presence and readability. */
+const GAMEPLAY_SPRITE_SCALE = 1.25;
 
 type Phase = 'playing' | 'paused' | 'roundEndPause' | 'matchEndPause';
 
@@ -75,8 +77,10 @@ export class FightScene extends Phaser.Scene {
 
     this.stageView = new StageView(this, STAGES[stage]);
     this.p1View = new FighterView(this, this.p1Def, 150, GROUND_Y);
+    this.p1View.sprite.setScale(GAMEPLAY_SPRITE_SCALE);
     const mirror = p1Fighter === p2Fighter && this.mode !== 'arcade';
     this.p2View = new FighterView(this, this.p2Def, 330, GROUND_Y, mirror ? { tintOverride: 0x99c2ff } : undefined);
+    this.p2View.sprite.setScale(GAMEPLAY_SPRITE_SCALE);
 
     const p1Label = 'P1';
     const p2Label = this.mode === 'versus' ? 'P2' : this.mode === 'training' ? 'CPU' : 'CPU';

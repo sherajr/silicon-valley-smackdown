@@ -32,9 +32,11 @@ export interface Pose {
   prop?: RectStyle | null;
   /** Optional whole-pose lean/rotation-ish offset applied to head+torso+hair for wobble/impact flavor. */
   bodyTilt?: number;
+  /** Hides the face (eyes closed/turned away), used for knockdown/KO poses. */
+  eyesClosed?: boolean;
 }
 
-function drawRect(ctx: CanvasRenderingContext2D, r: Rect, fill: string, outline: string): void {
+function drawRect(ctx: CanvasRenderingContext2D, r: Rect, fill: string, outline: string, highlight?: string): void {
   const x = Math.round(RIG_ANCHOR_X + r.x);
   const y = Math.round(RIG_ANCHOR_Y + r.y);
   const w = Math.round(r.w);
@@ -43,6 +45,33 @@ function drawRect(ctx: CanvasRenderingContext2D, r: Rect, fill: string, outline:
   ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
   ctx.fillStyle = fill;
   ctx.fillRect(x, y, w, h);
+  if (highlight && w > 2 && h > 2) {
+    ctx.fillStyle = highlight;
+    const hs = Math.max(1, Math.round(Math.min(w, h) * 0.28));
+    ctx.fillRect(x, y, w - hs, hs);
+  }
+}
+
+function drawFace(ctx: CanvasRenderingContext2D, head: Rect, outline: string, closed: boolean): void {
+  const x = Math.round(RIG_ANCHOR_X + head.x);
+  const y = Math.round(RIG_ANCHOR_Y + head.y);
+  const w = Math.round(head.w);
+  const h = Math.round(head.h);
+  // Eyes sit in the front-upper half of the head (facing right = front is +x).
+  const eyeY = y + Math.round(h * 0.38);
+  const browY = eyeY - 1;
+  ctx.fillStyle = outline;
+  if (closed) {
+    ctx.fillRect(x + Math.round(w * 0.35), eyeY, Math.max(2, Math.round(w * 0.4)), 1);
+    return;
+  }
+  const eyeW = Math.max(1, Math.round(w * 0.16));
+  const backEyeX = x + Math.round(w * 0.22);
+  const frontEyeX = x + Math.round(w * 0.56);
+  ctx.fillRect(backEyeX, eyeY, eyeW, 2);
+  ctx.fillRect(frontEyeX, eyeY, eyeW, 2);
+  // A tiny brow tick over the front eye reads as "determined" at this scale.
+  ctx.fillRect(frontEyeX, browY - 1, eyeW, 1);
 }
 
 /** Draws a fully posed character (facing right) onto a fresh canvas sized RIG_CANVAS_W x RIG_CANVAS_H. */
@@ -57,15 +86,22 @@ export function renderPose(pose: Pose, visual: CharacterVisual): HTMLCanvasEleme
   const tilt = pose.bodyTilt ?? 0;
   const shift = (r: Rect): Rect => ({ ...r, x: r.x + tilt * 0.4 });
 
-  drawRect(ctx, pose.legBack, darken(visual.secondary, 0.15), outline);
-  drawRect(ctx, pose.shoeBack, darken(visual.accent, 0.1), outline);
-  drawRect(ctx, pose.legFront, visual.secondary, outline);
-  drawRect(ctx, pose.shoeFront, visual.accent, outline);
-  drawRect(ctx, pose.torso, visual.primary, outline);
-  drawRect(ctx, shift(pose.armBack), darken(visual.skin, 0.12), outline);
-  drawRect(ctx, shift(pose.head), visual.skin, outline);
-  drawRect(ctx, shift(pose.hair), visual.hair, outline);
-  drawRect(ctx, pose.armFront, visual.skin, outline);
+  const skinHi = lighten(visual.skin, 0.16);
+  const primaryHi = lighten(visual.primary, 0.18);
+  const secondaryHi = lighten(visual.secondary, 0.15);
+  const hairHi = lighten(visual.hair, 0.2);
+
+  drawRect(ctx, pose.legBack, darken(visual.secondary, 0.18), outline);
+  drawRect(ctx, pose.shoeBack, darken(visual.accent, 0.12), outline);
+  drawRect(ctx, pose.legFront, visual.secondary, outline, secondaryHi);
+  drawRect(ctx, pose.shoeFront, visual.accent, outline, lighten(visual.accent, 0.2));
+  drawRect(ctx, pose.torso, visual.primary, outline, primaryHi);
+  drawRect(ctx, shift(pose.armBack), darken(visual.skin, 0.14), outline);
+  const headRect = shift(pose.head);
+  drawRect(ctx, headRect, visual.skin, outline, skinHi);
+  drawRect(ctx, shift(pose.hair), visual.hair, outline, hairHi);
+  drawFace(ctx, headRect, outline, !!pose.eyesClosed);
+  drawRect(ctx, pose.armFront, visual.skin, outline, skinHi);
   if (pose.prop) drawRect(ctx, pose.prop, pose.prop.color ?? visual.accent, outline);
 
   return canvas;
