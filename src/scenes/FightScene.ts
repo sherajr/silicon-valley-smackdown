@@ -413,6 +413,10 @@ export class FightScene extends Phaser.Scene {
     this.moveListVisible = false;
     this.moveListContainer.setVisible(false);
     this.pauseContainer.setVisible(true);
+    // Discard any buffered/held attack requests so pausing (including on focus loss)
+    // and later resuming can never launch an attack neither player actually intended now.
+    this.matchState.sim.p1.queue.clear();
+    this.matchState.sim.p2.queue.clear();
     GameContext.audio.playSfx('pause');
   }
 

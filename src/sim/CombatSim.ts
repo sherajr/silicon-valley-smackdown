@@ -38,7 +38,7 @@ import { resolveDefense } from './defense';
 import {
   spawnProjectile,
   stepProjectile,
-  projectileWorldBox,
+  projectileSweptWorldBox,
   isProjectileArmed,
   type ProjectileInstance,
 } from './Projectile';
@@ -140,6 +140,11 @@ export class CombatSim {
 
     if (this.freezeFrames > 0) {
       this.freezeFrames--;
+      // Hit-stop freezes movement, move timelines, and damage processing, but a short
+      // attack request made during the freeze must still be buffered so it isn't lost;
+      // it executes at the fighter's first valid opportunity once frozen state ends.
+      this.p1.queue.push(p1Input, this.isSuperAvailable(this.p1), true);
+      this.p2.queue.push(p2Input, this.isSuperAvailable(this.p2), true);
       return events;
     }
 
@@ -184,14 +189,47 @@ export class CombatSim {
     otherPrevX: number,
     events: SimEvent[],
   ): void {
-    self.queue.push(input);
+    self.queue.push(input, this.isSuperAvailable(self));
 
     if (self.cooldowns.special > 0) self.cooldowns.special--;
     if (self.cooldowns.downSpecial > 0) self.cooldowns.downSpecial--;
     if (self.cooldowns.grab > 0) self.cooldowns.grab--;
     if (self.cooldowns.super > 0) self.cooldowns.super--;
-    if (self.lastDirTapTimer > 0) self.lastDirTapTimer--;
-    else self.lastDirTap = 0;
+
+    // Genuine double-tap detection: press -> release -> press (same direction) within
+    // DASH_DOUBLE_TAP_WINDOW_FRAMES. Driven by raw left/right edges rather than held
+    // state, so holding a direction can never itself look like a tap. Runs every frame
+    // regardless of state so a tap started before a stun/attack still resolves correctly.
+    {
+      const leftEdge = input.left && !self.prevLeftHeld;
+      const rightEdge = input.right && !self.prevRightHeld;
+      const leftReleaseEdge = !input.left && self.prevLeftHeld;
+      const rightReleaseEdge = !input.right && self.prevRightHeld;
+      self.prevLeftHeld = input.left;
+      self.prevRightHeld = input.right;
+
+      if (self.tapPendingTimer > 0) {
+        self.tapPendingTimer--;
+        if (self.tapPendingTimer === 0) self.tapPendingDir = 0;
+      }
+
+      self.lastDirTap = 0;
+      if (leftEdge && self.tapPendingDir === -1) {
+        self.lastDirTap = -1;
+        self.tapPendingDir = 0;
+        self.tapPendingTimer = 0;
+      } else if (rightEdge && self.tapPendingDir === 1) {
+        self.lastDirTap = 1;
+        self.tapPendingDir = 0;
+        self.tapPendingTimer = 0;
+      } else if (leftReleaseEdge) {
+        self.tapPendingDir = -1;
+        self.tapPendingTimer = DASH_DOUBLE_TAP_WINDOW_FRAMES;
+      } else if (rightReleaseEdge) {
+        self.tapPendingDir = 1;
+        self.tapPendingTimer = DASH_DOUBLE_TAP_WINDOW_FRAMES;
+      }
+    }
 
     if (self.comboResetTimer > 0) {
       self.comboResetTimer--;
@@ -283,15 +321,13 @@ export class CombatSim {
         if (self.dashFramesLeft === 0) self.state = moveDir !== 0 ? 'walk' : 'idle';
       } else {
         const forward = self.facing === 1 ? 1 : -1;
-        if (moveDir !== 0 && moveDir === (forward as number) && this.lastDirTapMatches(self, moveDir)) {
+        if (moveDir !== 0 && moveDir === (forward as number) && self.lastDirTap === moveDir) {
           self.state = 'dash';
           self.dashFramesLeft = 10;
           self.vx = self.def.dashSpeed * moveDir * self.modifiers.speedMult;
           self.lastDirTap = 0;
-          self.lastDirTapTimer = 0;
           events.push({ type: 'dash', who: slot });
         } else {
-          if (moveDir !== 0) this.registerDirTap(self, moveDir);
           self.state = moveDir !== 0 ? 'walk' : 'idle';
           self.vx = moveDir * self.def.walkSpeed * self.modifiers.speedMult;
         }
@@ -332,21 +368,8 @@ export class CombatSim {
     this.prevUpMap.set(f, v);
   }
 
-  private dirTapMap = new WeakMap<FighterRuntime, { dir: number; timer: number }>();
-  private registerDirTap(f: FighterRuntime, dir: -1 | 1): void {
-    const rec = this.dirTapMap.get(f);
-    if (rec && rec.dir === dir && rec.timer > 0) {
-      f.lastDirTap = dir;
-      f.lastDirTapTimer = DASH_DOUBLE_TAP_WINDOW_FRAMES;
-    } else {
-      this.dirTapMap.set(f, { dir, timer: DASH_DOUBLE_TAP_WINDOW_FRAMES });
-      f.lastDirTap = 0;
-    }
-    const entry = this.dirTapMap.get(f)!;
-    entry.timer = DASH_DOUBLE_TAP_WINDOW_FRAMES;
-  }
-  private lastDirTapMatches(f: FighterRuntime, dir: -1 | 1): boolean {
-    return f.lastDirTap === dir;
+  private isSuperAvailable(f: FighterRuntime): boolean {
+    return f.hype >= f.def.moves.super.meterCost && f.cooldowns.super === 0;
   }
 
   private tryStartMove(
@@ -361,7 +384,7 @@ export class CombatSim {
     let isSuper = false;
 
     if (action.type === 'chord') {
-      if (self.hype >= self.def.moves.super.meterCost && self.cooldowns.super === 0) {
+      if (this.isSuperAvailable(self)) {
         kind = 'super';
         isSuper = true;
       } else {
@@ -394,7 +417,7 @@ export class CombatSim {
     const def = self.def.moves[kind];
     if (!def) return;
 
-    self.activeMove = { def, frame: 0, lastHitFrame: new Map(), isSuper };
+    self.activeMove = { def, frame: 0, lastHitFrame: new Map(), isSuper, projectileSpawned: false };
     self.state = 'attack';
     self.vx = def.lunge ? def.lunge.speed * self.facing : 0;
     if (kind === 'basic1' || kind === 'basic2' || kind === 'basic3') {
@@ -422,12 +445,9 @@ export class CombatSim {
       };
       events.push({ type: 'targetedStrikeMarked', who: slot, x: worldX, delayFrames: def.targetedStrike.delayFrames });
     }
-    if (def.projectile) {
-      const active = this.projectiles.filter((p) => p.ownerSlot === slot && p.def === def.projectile);
-      if (active.length < def.projectile.maxActiveInstances) {
-        this.projectiles.push(spawnProjectile(slot, def.id, def.projectile, self.x, -self.def.height * 0.55, self.facing));
-      }
-    }
+    // Projectiles do not launch here: they release on their own authored frame once the
+    // move is actually running (see advanceActiveMove), so interrupting startup correctly
+    // prevents an unlaunched projectile from ever appearing.
     events.push({ type: 'moveStarted', who: slot, moveId: def.id, kind: def.kind, isSuper });
   }
 
@@ -440,6 +460,19 @@ export class CombatSim {
     move.frame++;
     if (move.def.lunge) {
       self.vx = move.frame < move.def.lunge.frames ? move.def.lunge.speed * self.facing : 0;
+    }
+    if (move.def.projectile && !move.projectileSpawned) {
+      // A fighter's sim x/y is its ground anchor (y=0 grounded, negative airborne); the
+      // projectile's own spawnOffset is applied exactly once, inside spawnProjectile.
+      const releaseFrame = move.def.projectile.releaseFrame ?? move.def.startup;
+      if (move.frame >= releaseFrame) {
+        move.projectileSpawned = true;
+        const activeCount = this.projectiles.filter((p) => p.ownerSlot === slot && p.def === move.def.projectile).length;
+        if (activeCount < move.def.projectile.maxActiveInstances) {
+          this.projectiles.push(spawnProjectile(slot, move.def.id, move.def.projectile, self.x, self.y, self.facing));
+          events.push({ type: 'projectileReleased', who: slot, moveId: move.def.id });
+        }
+      }
     }
     const total = move.def.totalFrames;
     if (move.frame >= total) {
@@ -538,7 +571,7 @@ export class CombatSim {
       const targetSlot: PlayerSlot = p.ownerSlot === 'p1' ? 'p2' : 'p1';
       const target = targetSlot === 'p1' ? this.p1 : this.p2;
       if (target.wakeupInvuln > 0) continue;
-      const pBox = projectileWorldBox(p);
+      const pBox = projectileSweptWorldBox(p);
       const hBox = localBoxToWorld(hurtboxFor(target), target.x, target.y, 1);
       if (boxesOverlap(pBox, hBox)) {
         out.push({ kind: 'projectile', attacker: p.ownerSlot, defender: targetSlot, proj: p, effect: p.def.effect });

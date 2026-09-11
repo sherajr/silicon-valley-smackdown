@@ -19,4 +19,5 @@ export type SimEvent =
   | { type: 'landed'; who: PlayerSlot }
   | { type: 'crunchModeEntered'; who: PlayerSlot }
   | { type: 'targetedStrikeMarked'; who: PlayerSlot; x: number; delayFrames: number }
-  | { type: 'targetedStrikeLanded'; who: PlayerSlot; x: number };
+  | { type: 'targetedStrikeLanded'; who: PlayerSlot; x: number }
+  | { type: 'projectileReleased'; who: PlayerSlot; moveId: string };

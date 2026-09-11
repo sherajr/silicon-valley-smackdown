@@ -104,6 +104,7 @@ export function projectile(opts: {
   effect: HitEffect;
   maxActiveInstances?: number;
   telegraphFrames?: number;
+  releaseFrame?: number;
 }): ProjectileDef {
   return {
     motion: opts.motion,
@@ -116,6 +117,7 @@ export function projectile(opts: {
     effect: opts.effect,
     maxActiveInstances: opts.maxActiveInstances ?? 1,
     telegraphFrames: opts.telegraphFrames,
+    releaseFrame: opts.releaseFrame,
   };
 }
 

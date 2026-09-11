@@ -133,6 +133,8 @@ export interface ProjectileDef {
   maxActiveInstances: number;
   /** If set, projectile is stationary and only becomes active (dangerous) after this many frames. */
   telegraphFrames?: number;
+  /** Sim frame (within the owning move) the projectile actually launches. Defaults to the move's authored startup boundary. */
+  releaseFrame?: number;
 }
 
 export type MoveKind =

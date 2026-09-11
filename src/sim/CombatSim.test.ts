@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { CombatSim } from './CombatSim';
 import { localBoxToWorld } from './collision';
+import { projectileSweptWorldBox } from './Projectile';
 import { HUNTER } from '../data/characters/hunter';
+import { KEVIN } from '../data/characters/kevin';
 import { ELON_BOSS } from '../data/characters/elon';
 import { neutralFrameInput, type PlayerFrameInput } from './types';
-import { GPU_DAMAGE_MULT, MAX_HYPE } from './constants';
+import { GPU_DAMAGE_MULT, MAX_HYPE, DASH_DOUBLE_TAP_WINDOW_FRAMES, CHORD_WINDOW_FRAMES } from './constants';
 
 function inputs(overrides: Partial<PlayerFrameInput> = {}): PlayerFrameInput {
   return { ...neutralFrameInput(), ...overrides };
@@ -325,5 +327,292 @@ describe('CombatSim basics', () => {
     expect(a.p1.health).toBe(b.p1.health);
     expect(a.p2.health).toBe(b.p2.health);
     expect(a.p1.state).toBe(b.p1.state);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Regression coverage for the five reproduced baseline failures, exercised
+// through the real CombatSim input/command path (not by hand-constructing
+// results), plus the closely-related release-timing and cancellation rules.
+// ---------------------------------------------------------------------------
+
+describe('projectile release timing and placement (Hunter Special vs. Kevin)', () => {
+  it('releases only at the authored startup frame, and the resulting projectile actually reaches and damages a standing opponent', () => {
+    const sim = new CombatSim({ p1Def: HUNTER, p2Def: KEVIN, powerupsEnabled: false, seed: 1 });
+    sim.p1.state = 'idle';
+    sim.p1.stateTimer = 0;
+    sim.p2.state = 'idle';
+    sim.p2.stateTimer = 0;
+    sim.p1.x = 150;
+    sim.p2.x = 150 + 120; // normal range: well beyond melee reach, well inside projectile life/speed budget
+    const startHealth = sim.p2.health;
+
+    sim.step(inputs({ specialHeld: true, specialPressed: true }), inputs());
+    expect(sim.p1.activeMove?.def.kind).toBe('special');
+
+    const releaseFrame = HUNTER.moves.special.startup;
+    for (let i = 1; i < releaseFrame; i++) {
+      sim.step(inputs(), inputs());
+      expect(sim.projectiles.length).toBe(0); // must not exist before its release frame
+    }
+    sim.step(inputs(), inputs()); // this step reaches the release frame
+    expect(sim.projectiles.length).toBe(1);
+
+    let hit = false;
+    for (let i = 0; i < 60 && !hit; i++) {
+      sim.step(inputs(), inputs());
+      if (sim.p2.health < startHealth) hit = true;
+    }
+    expect(hit).toBe(true);
+  });
+
+  it('works facing both directions', () => {
+    const sim = new CombatSim({ p1Def: HUNTER, p2Def: KEVIN, powerupsEnabled: false, seed: 1 });
+    sim.p1.state = 'idle';
+    sim.p1.stateTimer = 0;
+    sim.p2.state = 'idle';
+    sim.p2.stateTimer = 0;
+    sim.p2.x = 150;
+    sim.p1.x = 150 + 120; // Hunter now to the right, so he must face and fire left
+    const startHealth = sim.p2.health;
+
+    sim.step(inputs({ specialHeld: true, specialPressed: true }), inputs());
+    expect(sim.p1.facing).toBe(-1);
+
+    let hit = false;
+    for (let i = 0; i < 90 && !hit; i++) {
+      sim.step(inputs(), inputs());
+      if (sim.p2.health < startHealth) hit = true;
+    }
+    expect(hit).toBe(true);
+  });
+
+  it('can be blocked, taking only chip damage instead of the full hit', () => {
+    const sim = new CombatSim({ p1Def: HUNTER, p2Def: KEVIN, powerupsEnabled: false, seed: 1 });
+    sim.p1.state = 'idle';
+    sim.p1.stateTimer = 0;
+    sim.p2.state = 'idle';
+    sim.p2.stateTimer = 0;
+    sim.p1.x = 150;
+    sim.p2.x = 150 + 120;
+    const startHealth = sim.p2.health;
+    const fullHitDamage = HUNTER.moves.special.projectile!.effect.damage;
+
+    sim.step(inputs({ specialHeld: true, specialPressed: true }), inputs());
+    for (let i = 0; i < 90; i++) sim.step(inputs(), inputs({ blockHeld: true }));
+
+    expect(sim.p2.health).toBeLessThan(startHealth);
+    expect(sim.p2.health).toBeGreaterThan(startHealth - fullHitDamage);
+  });
+
+  it('interrupting the move before its release frame prevents the projectile from ever appearing', () => {
+    const sim = new CombatSim({ p1Def: HUNTER, p2Def: KEVIN, powerupsEnabled: false, seed: 1 });
+    sim.p1.state = 'idle';
+    sim.p1.stateTimer = 0;
+    sim.p2.state = 'idle';
+    sim.p2.stateTimer = 0;
+    sim.p1.x = 150;
+    sim.p2.x = 270;
+
+    sim.step(inputs({ specialHeld: true, specialPressed: true }), inputs());
+    expect(sim.p1.activeMove?.def.kind).toBe('special');
+
+    // Interrupt well before the release frame (startup = 12).
+    sim.p1.activeMove = null;
+    sim.p1.state = 'hitstun';
+    sim.p1.stateTimer = 10;
+    for (let i = 0; i < 40; i++) sim.step(inputs(), inputs());
+
+    expect(sim.projectiles.length).toBe(0);
+  });
+});
+
+describe('projectileSweptWorldBox', () => {
+  it('covers the full path between the previous and current position, not just the current frame', () => {
+    const p = {
+      id: 1,
+      ownerSlot: 'p1' as const,
+      moveId: 'x',
+      def: { motion: 'linear' as const, speed: 20, life: 90, spawnOffset: { x: 0, y: 0 }, box: { x: 0, y: -6, w: 4, h: 6 }, effect: {} as never, maxActiveInstances: 1 },
+      x: 120,
+      y: 0,
+      prevX: 100,
+      prevY: 0,
+      vy: 0,
+      facing: 1 as const,
+      age: 5,
+      hasHit: false,
+    };
+    const swept = projectileSweptWorldBox(p);
+    expect(swept.left).toBe(100); // prevX + box.x
+    expect(swept.right).toBe(124); // x + box.x + box.w
+  });
+});
+
+describe('Super chord recognition within the two-frame window', () => {
+  function chordSim(): CombatSim {
+    const sim = new CombatSim({ p1Def: HUNTER, p2Def: HUNTER, powerupsEnabled: false, seed: 1 });
+    sim.p1.state = 'idle';
+    sim.p1.stateTimer = 0;
+    sim.p2.state = 'idle';
+    sim.p2.stateTimer = 0;
+    sim.p1.x = 150;
+    sim.p2.x = 400; // out of range so nothing actually connects
+    sim.p1.hype = MAX_HYPE;
+    return sim;
+  }
+
+  function pressAtOffset(sim: CombatSim, first: Partial<PlayerFrameInput>, second: Partial<PlayerFrameInput>, offset: number): void {
+    sim.step(inputs(first), inputs());
+    for (let i = 1; i < offset; i++) sim.step(inputs(), inputs());
+    if (offset > 0) sim.step(inputs(second), inputs());
+  }
+
+  const basicPress = { basicHeld: true, basicPressed: true };
+  const specialPress = { specialHeld: true, specialPressed: true };
+
+  for (const offset of [0, 1, 2]) {
+    it(`fires exactly one Super when Basic then Special land ${offset} frame(s) apart`, () => {
+      const sim = chordSim();
+      if (offset === 0) {
+        sim.step(inputs({ ...basicPress, ...specialPress }), inputs());
+      } else {
+        pressAtOffset(sim, basicPress, specialPress, offset);
+      }
+      expect(sim.p1.activeMove?.def.kind).toBe('super');
+      expect(sim.p1.activeMove?.isSuper).toBe(true);
+      expect(sim.p1.hype).toBe(0);
+    });
+
+    it(`fires exactly one Super when Special then Basic land ${offset} frame(s) apart`, () => {
+      const sim = chordSim();
+      if (offset === 0) {
+        sim.step(inputs({ ...basicPress, ...specialPress }), inputs());
+      } else {
+        pressAtOffset(sim, specialPress, basicPress, offset);
+      }
+      expect(sim.p1.activeMove?.def.kind).toBe('super');
+      expect(sim.p1.hype).toBe(0);
+    });
+  }
+
+  it('does not form a chord for a press just outside the window, and does not leave meter spent', () => {
+    const sim = chordSim();
+    pressAtOffset(sim, basicPress, specialPress, CHORD_WINDOW_FRAMES + 1);
+    expect(sim.p1.activeMove?.def.kind).not.toBe('super');
+    expect(sim.p1.hype).toBe(MAX_HYPE);
+  });
+
+  it('resolves both button orders identically for player two', () => {
+    const sim = new CombatSim({ p1Def: HUNTER, p2Def: HUNTER, powerupsEnabled: false, seed: 1 });
+    sim.p1.state = 'idle';
+    sim.p1.stateTimer = 0;
+    sim.p2.state = 'idle';
+    sim.p2.stateTimer = 0;
+    sim.p1.x = 150;
+    sim.p2.x = 400;
+    sim.p2.hype = MAX_HYPE;
+
+    sim.step(inputs(), inputs(specialPress));
+    sim.step(inputs(), inputs(basicPress));
+
+    expect(sim.p2.activeMove?.def.kind).toBe('super');
+    expect(sim.p2.hype).toBe(0);
+  });
+
+  it('with insufficient meter, a two-frame-apart chord resolves as an ordinary action instead', () => {
+    const sim = chordSim();
+    sim.p1.hype = 10;
+    pressAtOffset(sim, basicPress, specialPress, 2);
+    expect(sim.p1.activeMove?.def.kind).not.toBe('super');
+    expect(sim.p1.hype).toBe(10);
+  });
+});
+
+describe('dash requires a genuine double-tap, not a held direction', () => {
+  it('holding a direction continuously walks and never dashes', () => {
+    const sim = new CombatSim({ p1Def: HUNTER, p2Def: HUNTER, powerupsEnabled: false, seed: 1 });
+    sim.p1.state = 'idle';
+    sim.p1.stateTimer = 0;
+    sim.p2.state = 'idle';
+    sim.p2.stateTimer = 0;
+    sim.p1.x = 150;
+    sim.p2.x = 400; // ahead of p1, so facing/forward = right
+
+    for (let i = 0; i < 30; i++) {
+      sim.step(inputs({ right: true }), inputs());
+      expect(sim.p1.state).not.toBe('dash');
+    }
+    expect(sim.p1.state).toBe('walk');
+  });
+
+  it('press, release, then press again within the window triggers a real dash', () => {
+    const sim = new CombatSim({ p1Def: HUNTER, p2Def: HUNTER, powerupsEnabled: false, seed: 1 });
+    sim.p1.state = 'idle';
+    sim.p1.stateTimer = 0;
+    sim.p2.state = 'idle';
+    sim.p2.stateTimer = 0;
+    sim.p1.x = 150;
+    sim.p2.x = 400;
+
+    sim.step(inputs({ right: true }), inputs());
+    expect(sim.p1.state).not.toBe('dash');
+    sim.step(inputs({ right: false }), inputs());
+    sim.step(inputs({ right: true }), inputs());
+    expect(sim.p1.state).toBe('dash');
+  });
+
+  it('a second press after the double-tap window expires is treated as a fresh tap, not a dash', () => {
+    const sim = new CombatSim({ p1Def: HUNTER, p2Def: HUNTER, powerupsEnabled: false, seed: 1 });
+    sim.p1.state = 'idle';
+    sim.p1.stateTimer = 0;
+    sim.p2.state = 'idle';
+    sim.p2.stateTimer = 0;
+    sim.p1.x = 150;
+    sim.p2.x = 400;
+
+    sim.step(inputs({ right: true }), inputs());
+    sim.step(inputs({ right: false }), inputs());
+    for (let i = 0; i < DASH_DOUBLE_TAP_WINDOW_FRAMES + 2; i++) sim.step(inputs(), inputs());
+    sim.step(inputs({ right: true }), inputs());
+    expect(sim.p1.state).toBe('walk');
+  });
+});
+
+describe('hit-stop buffers a short attack request instead of dropping it', () => {
+  it('a Basic pressed during a freeze executes once the freeze ends', () => {
+    const sim = new CombatSim({ p1Def: HUNTER, p2Def: HUNTER, powerupsEnabled: false, seed: 1 });
+    sim.p1.state = 'idle';
+    sim.p1.stateTimer = 0;
+    sim.p2.state = 'idle';
+    sim.p2.stateTimer = 0;
+    sim.p1.x = 150;
+    sim.p2.x = 400; // out of range, isolates buffering from any hit/hitstop interaction
+
+    sim.freezeFrames = 3;
+    sim.step(inputs({ basicHeld: true, basicPressed: true }), inputs()); // freeze 3 -> 2, press buffered
+    expect(sim.p1.activeMove).toBeNull();
+    sim.step(inputs(), inputs()); // freeze 2 -> 1
+    sim.step(inputs(), inputs()); // freeze 1 -> 0
+    expect(sim.p1.activeMove).toBeNull(); // still nothing while frozen
+    sim.step(inputs(), inputs()); // first unfrozen frame: buffered press finally resolves
+    expect(sim.p1.activeMove?.def.kind).toBe('basic1');
+  });
+
+  it('does not age the buffered request purely because the freeze itself lasted several frames', () => {
+    const sim = new CombatSim({ p1Def: HUNTER, p2Def: HUNTER, powerupsEnabled: false, seed: 1 });
+    sim.p1.state = 'idle';
+    sim.p1.stateTimer = 0;
+    sim.p2.state = 'idle';
+    sim.p2.stateTimer = 0;
+    sim.p1.x = 150;
+    sim.p2.x = 400;
+
+    sim.freezeFrames = 8; // longer than ATTACK_BUFFER_FRAMES (6): would expire the request if freeze aged the buffer
+    sim.step(inputs({ basicHeld: true, basicPressed: true }), inputs());
+    for (let i = 0; i < 7; i++) sim.step(inputs(), inputs());
+    expect(sim.freezeFrames).toBe(0);
+    sim.step(inputs(), inputs());
+    expect(sim.p1.activeMove?.def.kind).toBe('basic1');
   });
 });

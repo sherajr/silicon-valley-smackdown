@@ -1,5 +1,4 @@
 import {
-  BINDABLE_ACTIONS,
   DEFAULT_P1_BINDINGS,
   DEFAULT_P2_BINDINGS,
   PAUSE_CODE,
@@ -21,18 +20,34 @@ const GAMEPLAY_CODES = new Set([
 
 type FocusListener = (focused: boolean) => void;
 
+/** Actions that expose a discrete press edge in PlayerFrameInput (as opposed to moveLeft/moveRight/up/down, which are read as level state only). */
+type EdgeAction = 'basic' | 'special' | 'block' | 'grab';
+const EDGE_ACTIONS: EdgeAction[] = ['basic', 'special', 'block', 'grab'];
+
+function emptyEdgeState(): Record<EdgeAction, boolean> {
+  return { basic: false, special: false, block: false, grab: false };
+}
+
 /**
  * Tracks physical key state via KeyboardEvent.code (so e.g. Numpad4 and
  * Digit4 are distinguished regardless of Num Lock) and produces normalized,
  * per-player action frames. Capture happens once per fixed sim tick via
- * captureFrame() -- press/release edges are computed from that cadence, not
- * from the DOM event stream, so OS key-repeat never re-fires an action.
+ * captureFrame(), but press/release *edges* are latched at DOM event time
+ * (see updateActionEdges) rather than derived by diffing held-state between
+ * polls: a key that goes down and back up entirely between two captureFrame()
+ * calls would otherwise vanish (both samples would see it not held) even
+ * though a real press happened. Latching at event time means a full tap
+ * between ticks still produces exactly one press edge on the next sample, and
+ * OS key-repeat (which never toggles held-state) never re-latches an edge.
  */
 export class InputManager {
   private held = new Set<string>();
   private p1Bindings: PlayerBindings;
   private p2Bindings: PlayerBindings;
-  private prevActionHeld: Record<'p1' | 'p2', Record<string, boolean>> = { p1: {}, p2: {} };
+  /** Whether each edge-action is currently down (any of its bound codes held), tracked incrementally at event time so repeats and bound-code aliases can't double-fire. */
+  private actionDown: Record<'p1' | 'p2', Record<EdgeAction, boolean>> = { p1: emptyEdgeState(), p2: emptyEdgeState() };
+  /** Sticky "a press edge happened since the last captureFrame() read" flag, consumed (and cleared) by captureFrame(). */
+  private edgePressed: Record<'p1' | 'p2', Record<EdgeAction, boolean>> = { p1: emptyEdgeState(), p2: emptyEdgeState() };
   private prevPauseHeld = false;
   private focused = true;
   private focusListeners: FocusListener[] = [];
@@ -43,10 +58,6 @@ export class InputManager {
     this.p1Bindings = clonePlayerBindings(p1);
     this.p2Bindings = clonePlayerBindings(p2);
     this.target = target;
-    for (const a of BINDABLE_ACTIONS) {
-      this.prevActionHeld.p1[a] = false;
-      this.prevActionHeld.p2[a] = false;
-    }
     this.keydown = this.keydown.bind(this);
     this.keyup = this.keyup.bind(this);
     this.onBlur = this.onBlur.bind(this);
@@ -107,10 +118,8 @@ export class InputManager {
   /** Clears held/buffered state, e.g. on blur or on entering a fresh match. Also resets edge memory. */
   clearAllHeld(): void {
     this.held.clear();
-    for (const a of BINDABLE_ACTIONS) {
-      this.prevActionHeld.p1[a] = false;
-      this.prevActionHeld.p2[a] = false;
-    }
+    this.actionDown = { p1: emptyEdgeState(), p2: emptyEdgeState() };
+    this.edgePressed = { p1: emptyEdgeState(), p2: emptyEdgeState() };
     this.prevPauseHeld = false;
   }
 
@@ -137,8 +146,21 @@ export class InputManager {
     const blockHeld = heldFor('block');
     const grabHeld = heldFor('grab');
 
-    const prev = this.prevActionHeld[slot];
-    const frame: PlayerFrameInput = {
+    // Press edges were already latched at DOM event time (see updateActionEdges), so a
+    // full tap that both began and ended between two captureFrame() calls still reports
+    // pressed:true here even though *Held above is already back to false. Consuming
+    // (clearing) the flag here means each edge is reported on exactly one frame.
+    const edges = this.edgePressed[slot];
+    const basicPressed = edges.basic;
+    const specialPressed = edges.special;
+    const grabPressed = edges.grab;
+    const blockPressed = edges.block;
+    edges.basic = false;
+    edges.special = false;
+    edges.grab = false;
+    edges.block = false;
+
+    return {
       ...neutralFrameInput(),
       left,
       right,
@@ -148,20 +170,33 @@ export class InputManager {
       specialHeld,
       blockHeld,
       grabHeld,
-      basicPressed: basicHeld && !prev.basic,
-      specialPressed: specialHeld && !prev.special,
-      grabPressed: grabHeld && !prev.grab,
-      blockPressed: blockHeld && !prev.block,
+      basicPressed,
+      specialPressed,
+      grabPressed,
+      blockPressed,
     };
-    prev.moveLeft = left;
-    prev.moveRight = right;
-    prev.up = up;
-    prev.down = down;
-    prev.basic = basicHeld;
-    prev.special = specialHeld;
-    prev.block = blockHeld;
-    prev.grab = grabHeld;
-    return frame;
+  }
+
+  /**
+   * Recomputes whether each edge-action bound to `code` is currently down (any
+   * bound code held) and latches a press edge the instant it transitions from
+   * up to down. Runs at DOM event time -- not at captureFrame() poll time -- so
+   * a tap can't be lost between polls, and OS key-repeat (which never toggles
+   * `held` membership) can never produce a second transition on its own.
+   */
+  private updateActionEdges(code: string): void {
+    for (const [slot, bindings] of [
+      ['p1', this.p1Bindings],
+      ['p2', this.p2Bindings],
+    ] as const) {
+      for (const action of EDGE_ACTIONS) {
+        if (!bindings[action].includes(code)) continue;
+        const nowDown = bindings[action].some((c) => this.held.has(c));
+        if (nowDown === this.actionDown[slot][action]) continue;
+        this.actionDown[slot][action] = nowDown;
+        if (nowDown) this.edgePressed[slot][action] = true;
+      }
+    }
   }
 
   private keydown(e: KeyboardEvent): void {
@@ -176,12 +211,14 @@ export class InputManager {
     }
     if (this.shouldIgnore(e)) return;
     this.held.add(e.code);
+    this.updateActionEdges(e.code);
     if (this.shouldPreventDefault(e)) e.preventDefault();
   }
 
   private keyup(e: KeyboardEvent): void {
     if (this.shouldIgnore(e)) return;
     this.held.delete(e.code);
+    this.updateActionEdges(e.code);
     if (this.shouldPreventDefault(e)) e.preventDefault();
   }
 

@@ -13,6 +13,8 @@ export interface ActiveMove {
   /** hit-window index -> last frame it successfully connected (for reHitInterval gating). */
   lastHitFrame: Map<number, number>;
   isSuper: boolean;
+  /** True once this move's projectile (if any) has launched, so it can only fire once per activation. */
+  projectileSpawned?: boolean;
 }
 
 export interface Modifiers {
@@ -47,6 +49,12 @@ export interface FighterRuntime {
   dashCooldown: number;
   lastDirTap: Facing | 0;
   lastDirTapTimer: number;
+  /** Raw held state one frame ago, for genuine press/release edge detection (dash double-tap). */
+  prevLeftHeld: boolean;
+  prevRightHeld: boolean;
+  /** Direction whose release is currently awaiting a second press to complete a double-tap. */
+  tapPendingDir: Facing | 0;
+  tapPendingTimer: number;
   grabEscapeWindow: number;
   pendingThrow: PendingThrow | null;
   wakeupInvuln: number;
@@ -84,6 +92,10 @@ export function createFighterRuntime(def: CharacterDef, x: number, facing: Facin
     dashCooldown: 0,
     lastDirTap: 0,
     lastDirTapTimer: 0,
+    prevLeftHeld: false,
+    prevRightHeld: false,
+    tapPendingDir: 0,
+    tapPendingTimer: 0,
     grabEscapeWindow: 0,
     pendingThrow: null,
     wakeupInvuln: 0,
@@ -120,6 +132,10 @@ export function resetFighterForRound(f: FighterRuntime, x: number, facing: Facin
   f.dashCooldown = 0;
   f.lastDirTap = 0;
   f.lastDirTapTimer = 0;
+  f.prevLeftHeld = false;
+  f.prevRightHeld = false;
+  f.tapPendingDir = 0;
+  f.tapPendingTimer = 0;
   f.grabEscapeWindow = 0;
   f.pendingThrow = null;
   f.wakeupInvuln = 0;
