@@ -186,8 +186,12 @@ export interface TargetedStrikeDef {
 export interface CharacterVisual {
   skin: string;
   hair: string;
+  /** Base torso garment: hoodie / shirt / blazer / jacket. */
   primary: string;
+  /** The distinct second garment or accessory layer: vest / tie / headset / sunglasses trim. Never used for legs. */
   secondary: string;
+  /** Legs (pants/trousers/jeans/skirt). Kept separate from `secondary` so a character's second garment layer and their legwear can differ, instead of one color standing in for both. */
+  pants: string;
   accent: string;
   outline: string;
 }

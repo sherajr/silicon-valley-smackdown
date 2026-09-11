@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { renderPose, RIG_CANVAS_W, RIG_CANVAS_H, RIG_ANCHOR_X, RIG_ANCHOR_Y, type Pose } from './FighterRig';
 import { framesForCharacter } from './characterRigs';
+import { detailPainterFor } from './characterDetails';
 import type { CharacterDef, MoveKind } from '../sim/types';
 
 export const RIG_ORIGIN_X = RIG_ANCHOR_X / RIG_CANVAS_W;
@@ -25,9 +26,9 @@ const registeredTextures = new Set<string>();
 const builtCharacters = new Set<string>();
 const cache = new Map<string, FighterVisualSet>();
 
-function registerTexture(scene: Phaser.Scene, key: string, pose: Pose, visual: CharacterDef['visual']): string {
+function registerTexture(scene: Phaser.Scene, key: string, pose: Pose, def: CharacterDef): string {
   if (!registeredTextures.has(key)) {
-    const canvas = renderPose(pose, visual);
+    const canvas = renderPose(pose, def.visual, detailPainterFor(def.id));
     scene.textures.addCanvas(key, canvas);
     registeredTextures.add(key);
   }
@@ -48,11 +49,12 @@ export function buildFighterVisuals(scene: Phaser.Scene, def: CharacterDef): Fig
 
   const set = framesForCharacter(def);
   const prefix = def.id;
-  const reg = (name: string, poses: Pose[]): string[] => poses.map((p, i) => registerTexture(scene, `${prefix}_${name}_${i}`, p, def.visual));
+  const reg = (name: string, poses: Pose[]): string[] => poses.map((p, i) => registerTexture(scene, `${prefix}_${name}_${i}`, p, def));
 
   const idleKeys = reg('idle', set.idle);
   const walkKeys = reg('walk', set.walk);
   const victoryKeys = reg('victory', set.victory);
+  const portraitKeys = reg('portrait', set.portrait);
 
   const visuals: FighterVisualSet = {
     idleAnim: registerAnim(scene, `${prefix}_idle`, idleKeys, 5, -1),
@@ -66,7 +68,7 @@ export function buildFighterVisuals(scene: Phaser.Scene, def: CharacterDef): Fig
     wakeupFrames: reg('wakeup', set.wakeup),
     koFrames: reg('ko', set.ko),
     moveFrames: {} as Record<MoveKind, string[]>,
-    portraitFrame: idleKeys[0],
+    portraitFrame: portraitKeys[0],
   };
 
   for (const kind of Object.keys(set.moves) as MoveKind[]) {

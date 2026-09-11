@@ -20,8 +20,9 @@ export const CHAD: CharacterDef = {
   visual: {
     skin: '#e4b48a',
     hair: '#3a2a18',
-    primary: '#dedad0', // casual expensive fleece vest
+    primary: '#dedad0', // casual expensive quarter-zip
     secondary: '#1c1c22', // sunglasses / dark tee
+    pants: '#c7bfa8', // chinos
     accent: '#c9a227', // term sheet / gold accents
     outline: '#141014',
   },

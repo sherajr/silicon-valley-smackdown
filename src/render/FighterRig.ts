@@ -16,6 +16,8 @@ export interface Rect {
 
 export interface RectStyle extends Rect {
   color?: string; // overrides the default part color
+  /** Small inset highlight drawn on top, e.g. a laptop/tablet screen glow. */
+  glowColor?: string;
 }
 
 /** A single posed frame: every body part's rectangle in local space (ground anchor at 0,0). */
@@ -36,11 +38,18 @@ export interface Pose {
   eyesClosed?: boolean;
 }
 
+/** Converts a local-space rect to rounded canvas pixel coordinates, using the shared rig anchor. Exported so per-character detail painters can align accessories to the same posed body parts. */
+export function rectPx(r: Rect): { x: number; y: number; w: number; h: number } {
+  return {
+    x: Math.round(RIG_ANCHOR_X + r.x),
+    y: Math.round(RIG_ANCHOR_Y + r.y),
+    w: Math.round(r.w),
+    h: Math.round(r.h),
+  };
+}
+
 function drawRect(ctx: CanvasRenderingContext2D, r: Rect, fill: string, outline: string, highlight?: string): void {
-  const x = Math.round(RIG_ANCHOR_X + r.x);
-  const y = Math.round(RIG_ANCHOR_Y + r.y);
-  const w = Math.round(r.w);
-  const h = Math.round(r.h);
+  const { x, y, w, h } = rectPx(r);
   ctx.fillStyle = outline;
   ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
   ctx.fillStyle = fill;
@@ -74,8 +83,29 @@ function drawFace(ctx: CanvasRenderingContext2D, head: Rect, outline: string, cl
   ctx.fillRect(frontEyeX, browY - 1, eyeW, 1);
 }
 
+/** The posed rect for every body part, in local space -- handed to a DetailPainter so accessories track the body through every pose (anticipation, impact, crouch, knockdown, ...) automatically. */
+export interface PoseLayout {
+  head: Rect;
+  hair: Rect;
+  torso: Rect;
+  armBack: Rect;
+  armFront: Rect;
+  legBack: Rect;
+  legFront: Rect;
+  shoeBack: Rect;
+  shoeFront: Rect;
+}
+
+/**
+ * Draws a character-specific layer of clothing/accessory detail (headphones,
+ * vest seams, lapels, glasses, ...) on top of the base rig, using the same
+ * posed rects so every accessory follows the body through every animation
+ * frame instead of being redrawn by hand per pose.
+ */
+export type DetailPainter = (ctx: CanvasRenderingContext2D, layout: PoseLayout, visual: CharacterVisual, opts: { eyesClosed: boolean }) => void;
+
 /** Draws a fully posed character (facing right) onto a fresh canvas sized RIG_CANVAS_W x RIG_CANVAS_H. */
-export function renderPose(pose: Pose, visual: CharacterVisual): HTMLCanvasElement {
+export function renderPose(pose: Pose, visual: CharacterVisual, detail?: DetailPainter): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
   canvas.width = RIG_CANVAS_W;
   canvas.height = RIG_CANVAS_H;
@@ -88,21 +118,53 @@ export function renderPose(pose: Pose, visual: CharacterVisual): HTMLCanvasEleme
 
   const skinHi = lighten(visual.skin, 0.16);
   const primaryHi = lighten(visual.primary, 0.18);
-  const secondaryHi = lighten(visual.secondary, 0.15);
+  const pantsHi = lighten(visual.pants, 0.15);
   const hairHi = lighten(visual.hair, 0.2);
 
-  drawRect(ctx, pose.legBack, darken(visual.secondary, 0.18), outline);
-  drawRect(ctx, pose.shoeBack, darken(visual.accent, 0.12), outline);
-  drawRect(ctx, pose.legFront, visual.secondary, outline, secondaryHi);
-  drawRect(ctx, pose.shoeFront, visual.accent, outline, lighten(visual.accent, 0.2));
-  drawRect(ctx, pose.torso, visual.primary, outline, primaryHi);
-  drawRect(ctx, shift(pose.armBack), darken(visual.skin, 0.14), outline);
+  const legBackRect = pose.legBack;
+  const shoeBackRect = pose.shoeBack;
+  const legFrontRect = pose.legFront;
+  const shoeFrontRect = pose.shoeFront;
+  const torsoRect = pose.torso;
+  const armBackRect = shift(pose.armBack);
   const headRect = shift(pose.head);
+  const hairRect = shift(pose.hair);
+  const armFrontRect = pose.armFront;
+
+  drawRect(ctx, legBackRect, darken(visual.pants, 0.18), outline);
+  drawRect(ctx, shoeBackRect, darken(visual.accent, 0.12), outline);
+  drawRect(ctx, legFrontRect, visual.pants, outline, pantsHi);
+  drawRect(ctx, shoeFrontRect, visual.accent, outline, lighten(visual.accent, 0.2));
+  drawRect(ctx, torsoRect, visual.primary, outline, primaryHi);
+  drawRect(ctx, armBackRect, darken(visual.skin, 0.14), outline);
   drawRect(ctx, headRect, visual.skin, outline, skinHi);
-  drawRect(ctx, shift(pose.hair), visual.hair, outline, hairHi);
+  drawRect(ctx, hairRect, visual.hair, outline, hairHi);
   drawFace(ctx, headRect, outline, !!pose.eyesClosed);
-  drawRect(ctx, pose.armFront, visual.skin, outline, skinHi);
-  if (pose.prop) drawRect(ctx, pose.prop, pose.prop.color ?? visual.accent, outline);
+  drawRect(ctx, armFrontRect, visual.skin, outline, skinHi);
+
+  if (detail) {
+    const layout: PoseLayout = {
+      head: headRect,
+      hair: hairRect,
+      torso: torsoRect,
+      armBack: armBackRect,
+      armFront: armFrontRect,
+      legBack: legBackRect,
+      legFront: legFrontRect,
+      shoeBack: shoeBackRect,
+      shoeFront: shoeFrontRect,
+    };
+    detail(ctx, layout, visual, { eyesClosed: !!pose.eyesClosed });
+  }
+
+  if (pose.prop) {
+    drawRect(ctx, pose.prop, pose.prop.color ?? visual.accent, outline);
+    if (pose.prop.glowColor) {
+      const { x, y, w, h } = rectPx(pose.prop);
+      ctx.fillStyle = pose.prop.glowColor;
+      ctx.fillRect(x + Math.round(w * 0.16), y + Math.round(h * 0.14), Math.max(1, Math.round(w * 0.68)), Math.max(1, Math.round(h * 0.4)));
+    }
+  }
 
   return canvas;
 }

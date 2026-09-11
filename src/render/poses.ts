@@ -224,6 +224,18 @@ export function victoryPose(b: Build): Pose {
   return p;
 }
 
+/** Confident wide stance for selection-screen/portrait art -- distinct from the gameplay idle frame. */
+export function portraitPose(b: Build): Pose {
+  const p = basePose(b);
+  const legs = baseLegs(b, 6);
+  Object.assign(p, legs);
+  p.armBack.x -= 1;
+  p.armFront.x += 1;
+  p.head.y -= 1;
+  p.bodyTilt = -1;
+  return p;
+}
+
 export function koPose(b: Build): Pose {
   const p = knockdownPose(b);
   p.eyesClosed = true;

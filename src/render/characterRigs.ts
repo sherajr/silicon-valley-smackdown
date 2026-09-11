@@ -17,6 +17,7 @@ import {
   knockdownPose,
   koPose,
   lowSweepArchetype,
+  portraitPose,
   superFinisherPose,
   superWindupPose,
   targetPointArchetype,
@@ -42,6 +43,7 @@ export interface CharacterFrameSet {
   wakeup: Pose[];
   victory: Pose[];
   ko: Pose[];
+  portrait: Pose[];
   moves: Record<MoveKind, Pose[]>;
 }
 
@@ -49,18 +51,19 @@ function propAt(b: Build, w: number, h: number, color: string, yOffset = 0): Rec
   return { x: b.torsoW / 2 - 2, y: b.shoulderY + b.armLen * 0.45 + yOffset, w, h, color };
 }
 
-function withSignatureProp(poses: Pose[], prop: RectStyle | null): Pose[] {
-  return poses.map((p) => withProp(p, prop));
-}
-
 function withStandingProp(base: Pose, prop: RectStyle | null): Pose {
   return withProp(base, prop);
 }
 
 interface RigRecipe {
+  /** The item this fighter's attacks throw/swing -- attached only to the specific moves that use it, never to idle/walk, so it doesn't float beside the same hand through every unrelated action. */
   signatureProp: (b: Build) => RectStyle | null;
   hairStyle: HairStyle;
   moves: (b: Build, sigProp: RectStyle | null) => Record<MoveKind, Pose[]>;
+  /** Optional distinct prop presented on the selection portrait (e.g. Hunter's laptop, separate from his thrown iPad). */
+  portraitProp?: (b: Build) => RectStyle | null;
+  /** Optional distinct prop shown on the victory pose. */
+  victoryProp?: (b: Build) => RectStyle | null;
 }
 
 function buildFrameSet(def: CharacterDef, recipe: RigRecipe): CharacterFrameSet {
@@ -70,16 +73,19 @@ function buildFrameSet(def: CharacterDef, recipe: RigRecipe): CharacterFrameSet 
   const moves = recipe.moves(b, sigProp);
   for (const kind of Object.keys(moves) as MoveKind[]) moves[kind] = hair(moves[kind]);
   return {
-    idle: hair(withSignatureProp(idleFrames(b), sigProp)),
-    walk: hair(withSignatureProp(walkFrames(b), sigProp)),
+    // Idle/walk/crouch never carry the attack prop -- it appears, is held, and is released only
+    // by the specific moves that throw or swing it (see `moves` below).
+    idle: hair(idleFrames(b)),
+    walk: hair(walkFrames(b)),
     jump: hair([jumpPose(b)]),
-    crouch: hair([withStandingProp(crouchPose(b), sigProp)]),
+    crouch: hair([crouchPose(b)]),
     block: hair([blockPose(b)]),
     hitstun: hair([hitstunPose(b)]),
     knockdown: hair([knockdownPose(b)]),
     wakeup: hair([wakeupPose(b)]),
-    victory: hair([victoryPose(b)]),
+    victory: hair([withStandingProp(victoryPose(b), recipe.victoryProp ? recipe.victoryProp(b) : null)]),
     ko: hair([koPose(b)]),
+    portrait: hair([withStandingProp(portraitPose(b), recipe.portraitProp ? recipe.portraitProp(b) : null)]),
     moves,
   };
 }
@@ -90,11 +96,15 @@ const BOTTLE: (b: Build) => RectStyle = (b) => propAt(b, 6, 14, '#4c7a3f');
 const CLIPBOARD: (b: Build) => RectStyle = (b) => propAt(b, 10, 13, '#f2e6c8');
 const TERM_SHEET: (b: Build) => RectStyle = (b) => propAt(b, 5, 15, '#e8e4d8');
 const ROCKET: (b: Build) => RectStyle = (b) => propAt(b, 7, 16, '#c7ccd3');
+/** Hunter's signature presentation prop: a silver laptop with a bright cyan screen glow, distinct from his thrown iPad. */
+const LAPTOP: (b: Build) => RectStyle = (b) => ({ ...propAt(b, 16, 11, '#c7d0d8'), glowColor: '#8fe9ff' });
 
 export function hunterFrames(def: CharacterDef): CharacterFrameSet {
   return buildFrameSet(def, {
     signatureProp: IPAD,
     hairStyle: 'short',
+    portraitProp: LAPTOP,
+    victoryProp: LAPTOP,
     moves: (b, prop) => ({
       basic1: jabArchetype(b, null),
       basic2: hookArchetype(b, null),

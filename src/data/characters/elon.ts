@@ -69,7 +69,8 @@ const VISUAL = {
   skin: '#e2ac82',
   hair: '#2a2520',
   primary: '#14151c', // dark futuristic jacket
-  secondary: '#3a3f52',
+  secondary: '#3a3f52', // jacket trim / collar
+  pants: '#101116', // dark trousers
   accent: '#d0d6de', // rocket boot / rocket accessory
   outline: '#0a0a0e',
 };

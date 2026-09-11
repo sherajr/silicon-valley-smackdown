@@ -20,9 +20,10 @@ export const PRIYA: CharacterDef = {
   visual: {
     skin: '#caa27a',
     hair: '#241a12',
-    primary: '#7d3fae', // blazer
+    primary: '#7d3fae', // bright blazer
     secondary: '#2d2d38', // headset
-    accent: '#f2e6c8', // clipboard / resumes
+    pants: '#232028', // dark athletic trousers
+    accent: '#f2e6c8', // clipboard / resumes / sneaker trim
     outline: '#150f1c',
   },
   moves: {

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { buildFighterVisuals, RIG_ORIGIN_X, RIG_ORIGIN_Y, type FighterVisualSet } from './SpriteFactory';
+import { poseIndexForMove } from './moveTimeline';
 import { GROUND_Y } from '../sim/constants';
 import type { FighterRuntime } from '../sim/FighterRuntime';
 import type { CharacterDef } from '../sim/types';
@@ -102,8 +103,7 @@ export class FighterView {
         const move = f.activeMove;
         if (move) {
           const frames = this.visuals.moveFrames[move.def.kind];
-          const progress = move.frame / Math.max(1, move.def.totalFrames);
-          const idx = Math.min(frames.length - 1, Math.floor(progress * frames.length));
+          const idx = poseIndexForMove(move, frames.length);
           this.setFrame(frames[idx]);
         }
         break;

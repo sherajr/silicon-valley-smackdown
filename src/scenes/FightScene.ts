@@ -155,7 +155,7 @@ export class FightScene extends Phaser.Scene {
       if (steps === MAX_STEPS_PER_FRAME) this.accumulator = 0;
     }
 
-    this.renderFrame();
+    this.renderFrame(delta);
   }
 
   private fixedStep(): void {
@@ -271,7 +271,7 @@ export class FightScene extends Phaser.Scene {
   private p1FlashThisFrame = false;
   private p2FlashThisFrame = false;
 
-  private renderFrame(): void {
+  private renderFrame(delta: number): void {
     const sim = this.matchState.sim;
     this.p1View.update(sim.p1, ARENA_OFFSET_X, this.p1FlashThisFrame);
     this.p2View.update(sim.p2, ARENA_OFFSET_X, this.p2FlashThisFrame);
@@ -279,7 +279,7 @@ export class FightScene extends Phaser.Scene {
     this.p2FlashThisFrame = false;
     this.effects.updateProjectiles(sim.projectiles);
     this.effects.updatePickup(sim.pickup);
-    this.effects.tick();
+    this.effects.tick(delta);
     this.hud.update(sim.p1, sim.p2, this.matchState.scoreP1, this.matchState.scoreP2, sim.clockFrames);
 
     if (GameContext.session.training.showHitboxes) this.drawHitboxes();

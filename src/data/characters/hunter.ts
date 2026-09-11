@@ -19,10 +19,11 @@ export const HUNTER: CharacterDef = {
   height: 62,
   visual: {
     skin: '#e8b48a',
-    hair: '#2b2320',
-    primary: '#3d4a63', // hoodie
-    secondary: '#8a5a2b', // fleece vest
-    accent: '#59c1d6', // smartwatch / sneakers
+    hair: '#4a3324', // chestnut brown
+    primary: '#9098a3', // gray hoodie
+    secondary: '#262a33', // dark quilted puffer vest
+    pants: '#3b5a86', // blue jeans
+    accent: '#59c1d6', // cyan rim light / sneaker accent / smartwatch
     outline: '#151018',
   },
   moves: {

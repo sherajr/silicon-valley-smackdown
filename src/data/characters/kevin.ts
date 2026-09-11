@@ -20,9 +20,10 @@ export const KEVIN: CharacterDef = {
   visual: {
     skin: '#e0ac7c',
     hair: '#1c1c1c',
-    primary: '#22283a', // suit
+    primary: '#22283a', // suit jacket
     secondary: '#8a1f2b', // tie
-    accent: '#c9a24b', // briefcase
+    pants: '#1b202e', // suit trousers
+    accent: '#c9a24b', // briefcase / glasses frame
     outline: '#0e0e14',
   },
   moves: {
