@@ -48,3 +48,39 @@ export function sustainedChords(startBeat: number, beatsPerChord: number, chords
   });
   return notes;
 }
+
+/** A moving bass line: the chord root pulses twice per chord instead of sitting as one static sustain, giving the low end forward motion. */
+export function rootPulseBass(startBeat: number, beatsPerChord: number, chords: number[][], opts: { wave: OscillatorType; gain: number; octave?: number }): Note[] {
+  const notes: Note[] = [];
+  const half = beatsPerChord / 2;
+  chords.forEach((chord, chordIdx) => {
+    const root = chord[0] + (opts.octave ?? 0) * 12;
+    notes.push({ beat: startBeat + chordIdx * beatsPerChord, freq: midiToFreq(root), dur: half * 0.85, wave: opts.wave, gain: opts.gain });
+    notes.push({ beat: startBeat + chordIdx * beatsPerChord + half, freq: midiToFreq(root), dur: half * 0.7, wave: opts.wave, gain: opts.gain * 0.75 });
+  });
+  return notes;
+}
+
+/**
+ * A short, fixed melodic contour (scale-degree offsets in semitones relative
+ * to each chord's root) restated once per chord at a slower rate than the
+ * arpeggio underneath it, so the piece has one identifiable hook a listener
+ * can hum instead of only an arpeggiated backing pattern.
+ */
+export function hookLine(startBeat: number, beatsPerChord: number, chords: number[][], motif: number[], opts: { wave: OscillatorType; gain: number; octave?: number }): Note[] {
+  const notes: Note[] = [];
+  const stepDur = beatsPerChord / motif.length;
+  chords.forEach((chord, chordIdx) => {
+    const root = chord[0] + (opts.octave ?? 0) * 12;
+    motif.forEach((offset, i) => {
+      notes.push({
+        beat: startBeat + chordIdx * beatsPerChord + i * stepDur,
+        freq: midiToFreq(root + offset),
+        dur: stepDur * 0.85,
+        wave: opts.wave,
+        gain: opts.gain,
+      });
+    });
+  });
+  return notes;
+}

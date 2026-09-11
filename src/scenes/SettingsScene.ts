@@ -67,7 +67,11 @@ export class SettingsScene extends Phaser.Scene {
   }
 
   private rowsFor(tab: Tab): string[] {
-    if (tab === 'audio') return ['master', 'music', 'sfx'];
+    if (tab === 'audio') {
+      const rows = ['master', 'music', 'sfx', 'chooseFile'];
+      if (GameContext.audio.hasCustomTrack()) rows.push('clearTrack');
+      return rows;
+    }
     if (tab === 'display') return ['screenShake', 'reducedEffects'];
     if (tab === 'controlsP1') return [...BINDABLE_ACTIONS, 'restore'];
     if (tab === 'controlsP2') return [...BINDABLE_ACTIONS, 'laptopPreset', 'restore'];
@@ -82,15 +86,23 @@ export class SettingsScene extends Phaser.Scene {
 
     if (tab === 'audio') {
       const v = GameContext.audio.getVolumes();
-      const rows = [
+      const volRows = [
         ['master', v.master],
         ['music', v.music],
         ['sfx', v.sfx],
       ] as const;
-      this.bodyText.setText(
-        rows.map(([label, val], i) => `${i === this.rowIndex ? '> ' : '  '}${label.toUpperCase().padEnd(8)} ${'#'.repeat(Math.round(val * 20)).padEnd(20, '.')} ${Math.round(val * 100)}%`).join('\n'),
+      const rows = this.rowsFor(tab);
+      const lines = volRows.map(
+        ([label, val], i) => `${i === this.rowIndex ? '> ' : '  '}${label.toUpperCase().padEnd(8)} ${'#'.repeat(Math.round(val * 20)).padEnd(20, '.')} ${Math.round(val * 100)}%`,
       );
-      this.hintText.setText('Left/Right to change tab, Up/Down to select, Basic to adjust, Block to go back');
+      lines.push('');
+      lines.push(`Music Track: ${GameContext.audio.getSelectedTrackLabel()}`);
+      const chooseIdx = rows.indexOf('chooseFile');
+      lines.push(`${chooseIdx === this.rowIndex ? '> ' : '  '}Choose Music File...`);
+      const clearIdx = rows.indexOf('clearTrack');
+      if (clearIdx >= 0) lines.push(`${clearIdx === this.rowIndex ? '> ' : '  '}Use Original Score`);
+      this.bodyText.setText(lines.join('\n'));
+      this.hintText.setText('Left/Right to change tab, Up/Down to select, Basic to adjust/choose, Block to go back');
     } else if (tab === 'display') {
       const rows = [
         ['Screen Shake', GameContext.save.screenShake],
@@ -175,13 +187,20 @@ export class SettingsScene extends Phaser.Scene {
     const tab = TABS[this.tabIndex];
     GameContext.audio.playSfx('confirm');
     if (tab === 'audio') {
-      const keys = ['master', 'music', 'sfx'] as const;
-      const key = keys[this.rowIndex];
-      const v = GameContext.audio.getVolumes();
-      v[key] = v[key] >= 0.999 ? 0 : Phaser.Math.Clamp(v[key] + 0.1, 0, 1);
-      GameContext.audio.setVolumes(v);
-      GameContext.save.volumes = v;
-      GameContext.persist();
+      const rows = this.rowsFor(tab);
+      const row = rows[this.rowIndex];
+      if (row === 'master' || row === 'music' || row === 'sfx') {
+        const v = GameContext.audio.getVolumes();
+        v[row] = v[row] >= 0.999 ? 0 : Phaser.Math.Clamp(v[row] + 0.1, 0, 1);
+        GameContext.audio.setVolumes(v);
+        GameContext.save.volumes = v;
+        GameContext.persist();
+      } else if (row === 'chooseFile') {
+        GameContext.audio.promptChooseFile();
+      } else if (row === 'clearTrack') {
+        GameContext.audio.clearCustomTrack();
+        this.rowIndex = Math.min(this.rowIndex, this.rowsFor(tab).length - 1);
+      }
       this.refresh();
     } else if (tab === 'display') {
       if (this.rowIndex === 0) GameContext.save.screenShake = !GameContext.save.screenShake;

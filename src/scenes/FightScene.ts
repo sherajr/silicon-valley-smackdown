@@ -124,6 +124,7 @@ export class FightScene extends Phaser.Scene {
 
   private cleanup(): void {
     this.unsubFocus?.();
+    GameContext.audio.setIntensity(1);
     this.stageView.destroy();
     this.p1View.destroy();
     this.p2View.destroy();
@@ -417,6 +418,7 @@ export class FightScene extends Phaser.Scene {
     // and later resuming can never launch an attack neither player actually intended now.
     this.matchState.sim.p1.queue.clear();
     this.matchState.sim.p2.queue.clear();
+    GameContext.audio.pauseMusic();
     GameContext.audio.playSfx('pause');
   }
 
@@ -424,6 +426,7 @@ export class FightScene extends Phaser.Scene {
     this.phase = 'playing';
     this.pauseContainer.setVisible(false);
     this.accumulator = 0;
+    GameContext.audio.resumeMusic();
   }
 
   private pauseNav = new MenuNavRepeater();
@@ -447,6 +450,7 @@ export class FightScene extends Phaser.Scene {
     this.phase = 'playing';
     this.roundBannerShown = false;
     this.hud.showRoundBanner(`ROUND ${this.matchState.roundNumber}`, 700);
+    GameContext.audio.resumeMusic();
   }
 
   private toMainMenu(): void {
