@@ -135,19 +135,15 @@ export class FightScene extends Phaser.Scene {
       return;
     }
 
-    if (this.phase === 'playing' && this.guard.ready()) {
-      const frame = GameContext.input.captureFrame();
-      if (frame.pausePressed) {
-        this.enterPause();
-        return;
-      }
-    }
-
+    // captureFrame() must be called exactly once per fixed sim tick -- it consumes
+    // press *edges* as a side effect, so polling it here too would silently eat
+    // every Basic/Special/Grab press before fixedStep() ever saw it. Pause is
+    // instead read from the same per-tick capture inside fixedStep().
     if (this.phase === 'playing') {
       this.accumulator += delta;
       const stepMs = SIM_DT * 1000;
       let steps = 0;
-      while (this.accumulator >= stepMs && steps < MAX_STEPS_PER_FRAME) {
+      while (this.accumulator >= stepMs && steps < MAX_STEPS_PER_FRAME && this.phase === 'playing') {
         this.fixedStep();
         this.accumulator -= stepMs;
         steps++;
@@ -161,6 +157,12 @@ export class FightScene extends Phaser.Scene {
   private fixedStep(): void {
     this.frameCounter++;
     const raw = GameContext.input.captureFrame();
+
+    if (this.guard.ready() && raw.pausePressed) {
+      this.enterPause();
+      return;
+    }
+
     const p1Input: PlayerFrameInput = raw.p1;
     let p2Input: PlayerFrameInput;
 
