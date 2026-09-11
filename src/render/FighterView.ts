@@ -15,8 +15,12 @@ export class FighterView {
   private currentKey = '';
   private flashTimer = 0;
   private paletteTint: number | null = null;
+  private shadow: Phaser.GameObjects.Ellipse;
 
   constructor(scene: Phaser.Scene, def: CharacterDef, x: number, y: number, palette?: { tintOverride?: number }) {
+    this.shadow = scene.add.ellipse(x, y, def.width * 0.9, 7, 0x000000, 0.32);
+    this.shadow.setDepth(-1); // anchors the fighter to the floor, above the stage but below the sprite
+
     this.visuals = buildFighterVisuals(scene, def);
     this.sprite = scene.add.sprite(x, y, this.visuals.portraitFrame);
     this.sprite.setOrigin(RIG_ORIGIN_X, RIG_ORIGIN_Y);
@@ -29,6 +33,7 @@ export class FighterView {
 
   destroy(): void {
     this.sprite.destroy();
+    this.shadow.destroy();
   }
 
   private setFrame(key: string): void {
@@ -48,6 +53,12 @@ export class FighterView {
     this.sprite.setFlipX(f.facing === -1);
     this.sprite.x = Math.round(arenaOffsetX + f.x);
     this.sprite.y = Math.round(GROUND_Y + f.y);
+
+    this.shadow.x = this.sprite.x;
+    this.shadow.y = GROUND_Y;
+    const airRatio = Math.min(1, Math.abs(f.y) / 90);
+    this.shadow.setScale(1 - airRatio * 0.4);
+    this.shadow.setAlpha(0.32 * (1 - airRatio * 0.6));
 
     if (hitFlash) this.flashTimer = 4;
     if (this.flashTimer > 0) {

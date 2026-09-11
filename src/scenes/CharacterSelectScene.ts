@@ -37,7 +37,8 @@ export class CharacterSelectScene extends Phaser.Scene {
   private p2Cursor!: Phaser.GameObjects.Rectangle;
   private previewP1: FighterView | null = null;
   private previewP2: FighterView | null = null;
-  private infoText!: Phaser.GameObjects.Text;
+  private p1InfoText!: Phaser.GameObjects.Text;
+  private p2InfoText!: Phaser.GameObjects.Text;
   private statusText!: Phaser.GameObjects.Text;
   private mode: 'arcade' | 'versus' | 'training' = 'arcade';
 
@@ -90,7 +91,14 @@ export class CharacterSelectScene extends Phaser.Scene {
     this.p2Cursor = this.add.rectangle(0, 0, TILE_W - 10, TILE_H - 10).setStrokeStyle(2, 0x4fd0ff);
     this.p2Cursor.setVisible(this.mode === 'versus');
 
-    this.infoText = this.add.text(180, 195, '', { fontFamily: 'monospace', fontSize: '8px', color: '#c8c8d8', lineSpacing: 3 });
+    const infoStyle = { fontFamily: 'monospace', fontSize: '8px', color: '#c8c8d8', lineSpacing: 3 } as const;
+    if (this.mode === 'versus') {
+      this.p1InfoText = this.add.text(6, 195, '', { ...infoStyle, color: '#ffe28a' });
+      this.p2InfoText = this.add.text(BASE_WIDTH - 6, 195, '', { ...infoStyle, color: '#a8d8ff', align: 'right' }).setOrigin(1, 0);
+    } else {
+      this.p1InfoText = this.add.text(BASE_WIDTH / 2, 195, '', { ...infoStyle, align: 'center' }).setOrigin(0.5, 0);
+      this.p2InfoText = this.add.text(0, 0, '').setVisible(false);
+    }
     this.statusText = this.add
       .text(BASE_WIDTH / 2, BASE_HEIGHT - 10, '', { fontFamily: 'monospace', fontSize: '8px', color: '#8a8a99' })
       .setOrigin(0.5, 0.5);
@@ -127,12 +135,25 @@ export class CharacterSelectScene extends Phaser.Scene {
     return { x: GRID_ORIGIN_X + col * TILE_W + TILE_W / 2, y: GRID_ORIGIN_Y + row * TILE_H + TILE_H / 2 };
   }
 
+  /** Builds one player's independent info panel: name, profession, move hint, and their own confirm/cancel keys. */
+  private describeFighter(id: FighterId, label: string, binds: { basic: string[]; block: string[] }): string {
+    const def = CHARACTERS[id];
+    return [
+      `${label}: ${def.name.toUpperCase()} - ${def.profession}`,
+      `"${def.tagline}"`,
+      `POWER ${'#'.repeat(def.power)}${'.'.repeat(5 - def.power)}  SPEED ${'#'.repeat(def.speed)}${'.'.repeat(5 - def.speed)}  REACH ${'#'.repeat(def.reach)}${'.'.repeat(5 - def.reach)}`,
+      `Special: ${def.moves.special.name}`,
+      `Confirm: ${labelForBinding(binds.basic)}   Cancel: ${labelForBinding(binds.block)}`,
+    ].join('\n');
+  }
+
   private updatePreview(): void {
     this.previewP1?.destroy();
     this.previewP1 = null;
     const id1 = this.roster[this.p1Index];
     this.previewP1 = new FighterView(this, CHARACTERS[id1], 130, PREVIEW_Y);
     this.previewP1.sprite.setScale(PREVIEW_SCALE);
+    this.p1InfoText.setText(this.describeFighter(id1, 'P1', GameContext.save.bindings.p1));
 
     if (this.mode === 'versus') {
       this.previewP2?.destroy();
@@ -142,18 +163,8 @@ export class CharacterSelectScene extends Phaser.Scene {
       this.previewP2 = new FighterView(this, CHARACTERS[id2], BASE_WIDTH - 130, PREVIEW_Y, mirror ? { tintOverride: P2_TINT } : undefined);
       this.previewP2.sprite.setScale(PREVIEW_SCALE);
       this.previewP2.sprite.setFlipX(true);
+      this.p2InfoText.setText(this.describeFighter(id2, 'P2', GameContext.save.bindings.p2));
     }
-
-    const def = CHARACTERS[id1];
-    const p1Binds = GameContext.save.bindings.p1;
-    this.infoText.setText(
-      [
-        `${def.name.toUpperCase()} - ${def.profession}`,
-        `"${def.tagline}"`,
-        `POWER ${'#'.repeat(def.power)}${'.'.repeat(5 - def.power)}  SPEED ${'#'.repeat(def.speed)}${'.'.repeat(5 - def.speed)}  REACH ${'#'.repeat(def.reach)}${'.'.repeat(5 - def.reach)}`,
-        `Confirm: ${labelForBinding(p1Binds.basic)}   Cancel: ${labelForBinding(p1Binds.block)}`,
-      ].join('\n'),
-    );
 
     this.statusText.setText(
       this.mode === 'versus'
