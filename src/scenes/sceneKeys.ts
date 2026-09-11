@@ -1,0 +1,15 @@
+export const SceneKeys = {
+  Boot: 'Boot',
+  Title: 'Title',
+  MainMenu: 'MainMenu',
+  CharacterSelect: 'CharacterSelect',
+  StageSelect: 'StageSelect',
+  VersusIntro: 'VersusIntro',
+  Fight: 'Fight',
+  Results: 'Results',
+  ArcadeIntermission: 'ArcadeIntermission',
+  Ending: 'Ending',
+  HowToPlay: 'HowToPlay',
+  Settings: 'Settings',
+  Credits: 'Credits',
+} as const;
