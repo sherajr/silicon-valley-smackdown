@@ -49,6 +49,11 @@ export class FighterView {
     this.sprite.play({ key, repeat: -1 });
   }
 
+  /** Starts the looping idle breathing animation with no live FighterRuntime driving it -- for a standing preview (e.g. character select) that isn't part of a running match. */
+  playIdlePreview(): void {
+    this.playAnim(this.visuals.idleAnim);
+  }
+
   update(f: FighterRuntime, arenaOffsetX: number, hitFlash: boolean): void {
     this.sprite.setFlipX(f.facing === -1);
     this.sprite.x = Math.round(arenaOffsetX + f.x);

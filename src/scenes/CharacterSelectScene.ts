@@ -153,6 +153,7 @@ export class CharacterSelectScene extends Phaser.Scene {
     const id1 = this.roster[this.p1Index];
     this.previewP1 = new FighterView(this, CHARACTERS[id1], 130, PREVIEW_Y);
     this.previewP1.sprite.setScale(PREVIEW_SCALE);
+    this.previewP1.playIdlePreview();
     this.p1InfoText.setText(this.describeFighter(id1, 'P1', GameContext.save.bindings.p1));
 
     if (this.mode === 'versus') {
@@ -162,6 +163,7 @@ export class CharacterSelectScene extends Phaser.Scene {
       const mirror = id1 === id2;
       this.previewP2 = new FighterView(this, CHARACTERS[id2], BASE_WIDTH - 130, PREVIEW_Y, mirror ? { tintOverride: P2_TINT } : undefined);
       this.previewP2.sprite.setScale(PREVIEW_SCALE);
+      this.previewP2.playIdlePreview();
       this.previewP2.sprite.setFlipX(true);
       this.p2InfoText.setText(this.describeFighter(id2, 'P2', GameContext.save.bindings.p2));
     }
