@@ -26,17 +26,26 @@ export class StageView {
     this.container.setDepth(-100);
 
     const { palette } = stage;
-    const sky = scene.add.graphics();
-    sky.fillGradientStyle(hex(palette.sky[0]), hex(palette.sky[0]), hex(palette.sky[1]), hex(palette.sky[1]), 1);
-    sky.fillRect(0, 0, BASE_WIDTH, GROUND_Y);
-    this.container.add(sky);
-    this.buildSkyDressing(stage);
+    const hasArt = scene.textures.exists(`stage_${stage.id}`);
+    if (hasArt) {
+      const bg = scene.add.image(BASE_WIDTH / 2, BASE_HEIGHT / 2, `stage_${stage.id}`);
+      bg.setDisplaySize(BASE_WIDTH, BASE_HEIGHT);
+      this.container.add(bg);
+      const floorLine = scene.add.rectangle(BASE_WIDTH / 2, GROUND_Y, BASE_WIDTH, 2, hex(palette.accent), 0.55);
+      this.container.add(floorLine);
+    } else {
+      const sky = scene.add.graphics();
+      sky.fillGradientStyle(hex(palette.sky[0]), hex(palette.sky[0]), hex(palette.sky[1]), hex(palette.sky[1]), 1);
+      sky.fillRect(0, 0, BASE_WIDTH, GROUND_Y);
+      this.container.add(sky);
+      this.buildSkyDressing(stage);
 
-    this.buildBand(palette.far, GROUND_Y - 92, 0.5, 7, 32, false);
-    this.buildBand(palette.mid, GROUND_Y - 58, 0.42, 5, 46, true);
-    this.buildBand(palette.near, GROUND_Y - 28, 0.26, 4, 62, true);
+      this.buildBand(palette.far, GROUND_Y - 92, 0.5, 7, 32, false);
+      this.buildBand(palette.mid, GROUND_Y - 58, 0.42, 5, 46, true);
+      this.buildBand(palette.near, GROUND_Y - 28, 0.26, 4, 62, true);
 
-    this.buildFloor(palette.floor, palette.accent);
+      this.buildFloor(palette.floor, palette.accent);
+    }
 
     this.buildSigns(stage);
     this.buildAmbient(stage);

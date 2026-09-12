@@ -6,7 +6,7 @@ import { MenuNavRepeater } from '../ui/menuInput';
 import { BASE_WIDTH, BASE_HEIGHT } from '../sim/constants';
 import { ALL_FIGHTER_IDS, type FighterId } from '../sim/types';
 import { CHARACTERS } from '../data/characters';
-import { buildFighterVisuals } from '../render/SpriteFactory';
+import { buildFighterVisuals, parseFrameKey } from '../render/SpriteFactory';
 import { FighterView } from '../render/FighterView';
 import { buildLadder } from '../progression/ArcadeLadder';
 import { labelForBinding } from '../input/bindings';
@@ -17,7 +17,7 @@ const TILE_H = 58;
 const GRID_ORIGIN_X = BASE_WIDTH / 2 - TILE_W * 1.5;
 const GRID_ORIGIN_Y = 40;
 const PREVIEW_Y = 246;
-const PREVIEW_SCALE = 1.35;
+const PREVIEW_SCALE = 0.72;
 
 const P2_TINT = 0x99c2ff;
 
@@ -46,6 +46,15 @@ export class CharacterSelectScene extends Phaser.Scene {
     super(SceneKeys.CharacterSelect);
   }
 
+  init(): void {
+    this.proceeded = false;
+    this.tileRects = [];
+    this.tileSprites = [];
+    this.lockTexts = [];
+    this.previewP1 = null;
+    this.previewP2 = null;
+  }
+
   create(): void {
     this.guard.arm(GameContext.input);
     this.mode = GameContext.session.mode ?? 'arcade';
@@ -71,8 +80,10 @@ export class CharacterSelectScene extends Phaser.Scene {
       this.tileRects.push(rect);
 
       const visuals = buildFighterVisuals(this, def);
-      const spr = this.add.sprite(x, y - 4, visuals.portraitFrame);
-      spr.setScale(0.9);
+      const portrait = parseFrameKey(visuals.portraitFrame);
+      const spr = this.add.sprite(x, y - 2, portrait.texture, portrait.frame);
+      spr.setOrigin(0.5, 0.85);
+      spr.setScale(0.42);
       if (locked) spr.setTint(0x2a2a33);
       this.tileSprites.push(spr);
 

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { buildFighterVisuals, RIG_ORIGIN_X, RIG_ORIGIN_Y, type FighterVisualSet } from './SpriteFactory';
+import { buildFighterVisuals, parseFrameKey, RIG_ORIGIN_X, RIG_ORIGIN_Y, type FighterVisualSet } from './SpriteFactory';
 import { poseIndexForMove } from './moveTimeline';
 import { GROUND_Y } from '../sim/constants';
 import type { FighterRuntime } from '../sim/FighterRuntime';
@@ -19,10 +19,11 @@ export class FighterView {
 
   constructor(scene: Phaser.Scene, def: CharacterDef, x: number, y: number, palette?: { tintOverride?: number }) {
     this.shadow = scene.add.ellipse(x, y, def.width * 0.9, 7, 0x000000, 0.32);
-    this.shadow.setDepth(-1); // anchors the fighter to the floor, above the stage but below the sprite
+    this.shadow.setDepth(-1);
 
     this.visuals = buildFighterVisuals(scene, def);
-    this.sprite = scene.add.sprite(x, y, this.visuals.portraitFrame);
+    const portrait = parseFrameKey(this.visuals.portraitFrame);
+    this.sprite = scene.add.sprite(x, y, portrait.texture, portrait.frame);
     this.sprite.setOrigin(RIG_ORIGIN_X, RIG_ORIGIN_Y);
     this.sprite.setScale(1);
     if (palette?.tintOverride) {
@@ -40,7 +41,8 @@ export class FighterView {
     if (this.currentKey === key) return;
     this.currentKey = key;
     this.sprite.anims.stop();
-    this.sprite.setTexture(key);
+    const { texture, frame } = parseFrameKey(key);
+    this.sprite.setTexture(texture, frame);
   }
 
   private playAnim(key: string): void {
@@ -49,7 +51,7 @@ export class FighterView {
     this.sprite.play({ key, repeat: -1 });
   }
 
-  /** Starts the looping idle breathing animation with no live FighterRuntime driving it -- for a standing preview (e.g. character select) that isn't part of a running match. */
+  /** Starts the looping idle breathing animation for a standing preview. */
   playIdlePreview(): void {
     this.playAnim(this.visuals.idleAnim);
   }
@@ -71,10 +73,12 @@ export class FighterView {
       this.sprite.setTint(0xffffff);
       this.sprite.setTintMode(Phaser.TintModes.FILL);
     } else if (this.paletteTint !== null) {
+      this.sprite.clearTint();
       this.sprite.setTintMode(Phaser.TintModes.MULTIPLY);
       this.sprite.setTint(this.paletteTint);
     } else {
       this.sprite.clearTint();
+      this.sprite.setTintMode(Phaser.TintModes.MULTIPLY);
     }
 
     switch (f.state) {

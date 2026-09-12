@@ -2,7 +2,7 @@
 
 A funny, original, 2D arcade fighting game built with **TypeScript, Vite, and Phaser**. Six fighters, three stages, a full single-player arcade run against a final boss (Elon), local two-player versus, training mode, pickups, and an original synthesized soundtrack — no accounts, no backend.
 
-All shipped art, music, and sound effects are generated procedurally at runtime by this project's own code (see `src/render` and `src/audio`); nothing is a hand-authored bitmap sprite sheet or a licensed recording bundled into the repo. The one exception is opt-in and local to your own session: **Settings → Audio → Choose Music File** lets you point the game at an MP3/WAV on your own machine to play as the soundtrack instead of the built-in score (see [Music](#music) below). That file is never uploaded, bundled, or persisted — it's re-selected each session.
+All six fighters now use real pixel-art sprite sheets (idle, walk, attack, and jump/crouch/block/hurt poses) plus painted stage backgrounds. The original synthesized soundtrack is still generated at runtime by this project's own code (`src/audio`); nothing is a licensed recording bundled into the repo. The one exception is opt-in and local to your own session: **Settings → Audio → Choose Music File** lets you point the game at an MP3/WAV on your own machine to play as the soundtrack instead of the built-in score (see [Music](#music) below). That file is never uploaded, bundled, or persisted — it's re-selected each session.
 
 ## Requirements
 
@@ -113,7 +113,9 @@ Everything gameplay-relevant lives in data/config files, not scattered through t
 - `src/data/characters/*.ts` — one file per fighter: stats, palette, and every move's frame data, hitboxes, and effects, authored with the helpers in `src/data/moveHelpers.ts`.
 - `src/data/stages/index.ts` — stage palettes, signage text, and music track IDs.
 - `src/progression/ArcadeLadder.ts` — the five-match ladder generation (Hunter's is authored; every other fighter's is generated to avoid duplicates/self-matches).
-- `src/render/characterRigs.ts` / `src/render/poses.ts` — the procedural rig and pose library (each character's silhouette, props, and attack poses).
+- `src/render/SpriteFactory.ts` — loads the pixel-art sheets from `public/sprites/fighters/` and maps sim states to idle/walk/attack/pose frames.
+- `public/sprites/` — 2×2 sheets per fighter action, stage backgrounds, and FX.
+- `src/render/characterRigs.ts` / `src/render/poses.ts` — the original procedural vector rig (kept as a fallback if a sheet is missing).
 - `src/render/characterDetails.ts` — the per-character clothing/accessory detail layer (Hunter's headphones and quilted vest, Kevin's tie and glasses, etc.) painted on top of the base rig for every pose.
 - `src/render/moveTimeline.ts` — maps a move's live simulation frame to the right anticipation/contact/recovery pose, keyed to its real hit/release windows.
 - `src/audio/tracks.ts` / `src/audio/musicTheory.ts` — the note data and phrase-composition helpers for the menu theme, all three stage tracks, and the victory sting.
@@ -122,7 +124,7 @@ The simulation core (`src/sim/CombatSim.ts` and friends) has no rendering depend
 
 ## Credits
 
-Design, code, character art, stage art, effects, and the built-in music/sound effects were all built for this project and are generated in-engine from this repository's own code — no external art, audio, or font asset is bundled in the repository itself. Engine: TypeScript + Vite + Phaser. See [Music](#music) above for the one opt-in exception: a listener can point the game at their own local audio file for the current session.
+Design, code, character art, stage art, effects, and the built-in music/sound effects were all built for this project. Fighter and stage art ships as pixel-art sheets under `public/sprites/`. Engine: TypeScript + Vite + Phaser. See [Music](#music) above for the one opt-in exception: a listener can point the game at their own local audio file for the current session.
 
 Elon and every other character in this game are fictional, exaggerated arcade caricatures created for comic effect. Any resemblance to real people or companies is parody, not depiction.
 
@@ -137,9 +139,8 @@ Elon and every other character in this game are fictional, exaggerated arcade ca
 
 **Known limitations — read before assuming a claim of "done" covers everything:**
 
-- **No reference photo was available to inspect.** A prompt describing Hunter's appearance referenced an attached reference image, but no image file was actually present in the project or conversation for this pass. Hunter's headphones, hoodie, quilted vest, jeans, sneakers, and laptop were implemented from the prompt's detailed *written* identity checklist, not pixel-matched against the photo itself. If a real reference image is supplied later, his rig and detail-painter layer (`src/render/characterDetails.ts`) should be revisited against it directly.
-- **No image-generation tool was available in this environment.** Character, stage, and effect art is genuinely layered and detailed — a per-character clothing/accessory painter on top of a posed body rig, timeline-synced animation, shaped projectile/pickup icons, authored stage prop layers — but it is all vector shapes drawn through Phaser's Graphics/Canvas 2D API, not hand-authored or AI-generated raster pixel-art sprite sheets. That is a genuine ceiling on facial/material fidelity compared to real illustrated sprite art, though it does mean detail is never lost to canvas downscaling the way a rasterized sprite sheet would be.
-- **The presentation canvas is still the original 480×270 simulation resolution** (upscaled by Phaser's Scale.FIT), not the 960×540-over-480×270 two-tier scheme suggested as one acceptable direction. Given the rig renders as vector shapes rather than fixed-resolution bitmaps, doubling the base canvas would have meant redrawing every part at higher fixed pixel dimensions for a real but incremental sharpness gain, at real risk of regressing hit/hurtbox-to-visual alignment, HUD layout, and every scene's coordinate math across the whole game -- a bad trade given the time available. Text and shapes are already crisp at the current scale (see the screenshots taken during this pass).
+- **Pixel-art sheets are now used in live matches** for all six fighters (Hunter, Kevin, Al, Priya, Chad, Elon) plus the three stages. Sheets are 96×120 2×2 grids under `public/sprites/fighters/{id}/{idle,walk,attack,poses}.png`. Pose coverage is still compact (one jump/crouch/block/hurt frame each, four attack frames shared across specials) — not a full 17-pose fighting-game atlas.
+- **The presentation canvas is still the original 480×270 simulation resolution** (upscaled by Phaser's Scale.FIT).
 - **"Ox" by Slàinte Mhath is not bundled.** No such recording was supplied with this task, and it was not downloaded from any source (doing so would be both a copyright violation and against this project's explicit instructions). Instead, the playback infrastructure it would need is fully built and works today with any file you supply locally: see [Music](#music).
 - Balance numbers (damage, frame data, AI aggression) follow the brief's target ranges but have not been through extensive human competitive playtesting.
 - The production JS bundle is a single ~1.5&nbsp;MB (400&nbsp;KB gzipped) chunk; Vite's build warns about this. It loads fine locally and over a normal connection; code-splitting was not pursued since it wasn't required for correctness.
