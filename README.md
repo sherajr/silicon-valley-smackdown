@@ -4,17 +4,18 @@ A funny, original, 2D arcade fighting game built with **TypeScript, Vite, and Ph
 
 All six fighters now use real pixel-art sprite sheets (idle, walk, attack, and jump/crouch/block/hurt poses) plus painted stage backgrounds. The original synthesized soundtrack is still generated at runtime by this project's own code (`src/audio`); nothing is a licensed recording bundled into the repo. The one exception is opt-in and local to your own session: **Settings → Audio → Choose Music File** lets you point the game at an MP3/WAV on your own machine to play as the soundtrack instead of the built-in score (see [Music](#music) below). That file is never uploaded, bundled, or persisted — it's re-selected each session.
 
-## Install and play on Windows
+## Install and play on desktop
 
-Once a Windows release has been published, download **Silicon-Valley-Smackdown-1.0.0-Windows-x64-Setup.exe** (or the newer version) from [Releases](https://github.com/sherajr/silicon-valley-smackdown/releases). Double-click it to install and launch the game. Afterward, use the desktop or Start menu shortcut.
+Once a release has been published, grab the file for your OS from [Releases](https://github.com/sherajr/silicon-valley-smackdown/releases):
 
-- Intended for Windows 10/11 on an Intel/AMD 64-bit PC. ARM64 and 32-bit Windows installers are not provided.
-- No Node.js, terminal, browser installation, account, or internet connection is needed to play. All game art, code, and the synthesized soundtrack are included.
-- Press **F11** to toggle fullscreen. **Escape** still pauses the game; **Alt+F4** closes it.
-- Settings and unlocks are stored in `%APPDATA%\Silicon Valley Smackdown`, separately from browser saves. Installing a newer version preserves them. Uninstall through Windows Settings → Apps; saved data is retained.
-- Initial builds are unsigned, so Windows may show an unknown-publisher or SmartScreen warning. Verify the source and the included SHA-256 checksum; signing for public distribution is a separate release step.
+- **Windows:** download **Silicon-Valley-Smackdown-1.0.0-Windows-x64-Setup.exe** (or the newer version). Double-click it to install and launch the game, then use the desktop or Start menu shortcut afterward. Windows 10/11 on an Intel/AMD 64-bit PC; ARM64 and 32-bit installers are not provided.
+- **macOS:** download **Silicon-Valley-Smackdown-1.0.0-macOS-arm64.dmg** (Apple Silicon) or the **-x64.dmg** (Intel), open it, and drag the app to Applications. **These builds are unsigned and not notarized** — a normal double-click will be refused by Gatekeeper, so right-click (or Control-click) the app and choose **Open**, then confirm in the dialog that appears once. See [macOS notes](docs/macos.md#release-checks-and-limitations) for why, and for the System Settings alternative.
 
-If no release is available yet, a maintainer can build one using the [Windows packaging instructions](docs/windows.md). Successful **Windows installer** workflow runs also include the installer as a downloadable artifact (GitHub wraps artifacts in a ZIP; extract it first).
+Either way: no Node.js, terminal, browser installation, account, or internet connection is needed to play — all game art, code, and the synthesized soundtrack are included. Press **F11** to toggle fullscreen; **Escape** pauses the game. Settings and unlocks are stored per-OS (`%APPDATA%\Silicon Valley Smackdown` on Windows, `~/Library/Application Support/Silicon Valley Smackdown` on macOS), separately from browser saves, and survive installing a newer version. Uninstall through Windows Settings → Apps, or by moving the app to the Trash on macOS; saved data is retained either way.
+
+Windows builds may still show an unknown-publisher/SmartScreen warning even though they're less locked-down than the unsigned macOS build above — verify the source and the included SHA-256 checksum either way; signing for public distribution is a separate release step neither platform has yet.
+
+If no release is available yet, a maintainer can build one using the [Windows](docs/windows.md) or [macOS](docs/macos.md) packaging instructions. Successful **Windows installer**/**macOS installer** workflow runs also include the installer as a downloadable artifact (GitHub wraps artifacts in a ZIP; extract it first).
 
 ## Development requirements
 
@@ -44,6 +45,7 @@ Open the printed local URL (typically `http://localhost:5173`). No account, API 
 | `npm run test:e2e` | Playwright end-to-end browser suite (builds and previews the app automatically) |
 | `npm run desktop` | Build and launch the desktop game locally |
 | `npm run dist:win` | Build a Windows x64 installer in `release/` (run on Windows) |
+| `npm run dist:mac` | Build macOS arm64 + x64 disk images in `release/` (run on a Mac) |
 | `npm run test:desktop:unit` | Check desktop asset path isolation |
 | `npm run test:desktop` | Desktop smoke test; requires `npm run build:desktop` first |
 
