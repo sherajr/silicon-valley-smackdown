@@ -4,6 +4,7 @@ import { BASE_WIDTH, BASE_HEIGHT } from '../sim/constants';
 import { ALL_FIGHTER_IDS, type FighterId, type FighterStateName, type MoveKind } from '../sim/types';
 import { CHARACTERS } from '../data/characters';
 import { buildFighterVisuals, RIG_ORIGIN_X, RIG_ORIGIN_Y, type FighterVisualSet } from '../render/SpriteFactory';
+import { queueRealSpriteLoad, realFramesForClip, CHARACTERS_WITH_REAL_ART } from '../render/realSprites';
 import { hurtboxFor } from '../sim/FighterRuntime';
 import { localBoxToWorld } from '../sim/collision';
 
@@ -25,7 +26,13 @@ const HURTBOX_STATE_FOR_CLIP: Partial<Record<ClipId, FighterStateName>> = {
 // and the sprite's origin sits near the feet (RIG_ORIGIN_Y), so the visible top of the sprite
 // extends upward from spriteY by roughly RIG_ORIGIN_Y-fraction * RIG_CANVAS_H * scale. This
 // scale/y pair keeps that within the 480x270 logical viewport instead of clipping off-screen.
-const SPRITE_SCALE = 2.2;
+const RIG_SPRITE_SCALE = 2.2;
+/** Real frames are trimmed at native source resolution (hundreds of px tall), not the procedural
+ * rig's tiny 128x92 canvas -- this scale is a rough eyeball match so the real "ready" pose reads
+ * at about the same on-screen height as the rig's idle pose in THIS viewer, for side-by-side
+ * comparison. It is not a gameplay decision: FightScene doesn't use real art at all yet, so the
+ * actual in-match pixel scale for this character is still open (see CODEX_NEXT.md). */
+const REAL_SPRITE_SCALE = 0.5;
 const SPRITE_X = BASE_WIDTH / 2;
 const SPRITE_Y = 230;
 
@@ -42,6 +49,12 @@ export class AnimationViewerScene extends Phaser.Scene {
   private frameIndex = 0;
   private flipped = false;
   private showOverlay = true;
+  /** Prefer real delivered art over the procedural rig wherever it's available for the current
+   * fighter/clip; falls back to the rig automatically otherwise. Toggle with 'R' to compare. */
+  private preferRealArt = true;
+  /** Whether the frame actually on screen right now is real art (vs. rig) -- drives the display
+   * scale/origin and the info-text label; recomputed every refresh(). */
+  private showingRealArt = false;
   private sprite!: Phaser.GameObjects.Sprite;
   private overlayGfx!: Phaser.GameObjects.Graphics;
   private infoText!: Phaser.GameObjects.Text;
@@ -79,6 +92,10 @@ export class AnimationViewerScene extends Phaser.Scene {
         this.showOverlay = !this.showOverlay;
         this.refresh();
         break;
+      case 'KeyR':
+        this.preferRealArt = !this.preferRealArt;
+        this.refresh();
+        break;
       case 'Escape':
         this.scene.start(SceneKeys.Title);
         break;
@@ -88,13 +105,19 @@ export class AnimationViewerScene extends Phaser.Scene {
     e.preventDefault();
   };
 
+  preload(): void {
+    for (const id of ALL_FIGHTER_IDS) {
+      if (CHARACTERS_WITH_REAL_ART.has(id)) queueRealSpriteLoad(this, id);
+    }
+  }
+
   create(): void {
     this.cameras.main.setBackgroundColor('#20222c');
     this.add.rectangle(SPRITE_X, SPRITE_Y, BASE_WIDTH, 2, 0x4a4a5a); // ground reference line at RIG anchor height
 
     this.sprite = this.add.sprite(SPRITE_X, SPRITE_Y, '');
     this.sprite.setOrigin(RIG_ORIGIN_X, RIG_ORIGIN_Y);
-    this.sprite.setScale(SPRITE_SCALE);
+    this.sprite.setScale(RIG_SPRITE_SCALE);
 
     this.overlayGfx = this.add.graphics();
     this.overlayGfx.setDepth(10);
@@ -104,7 +127,7 @@ export class AnimationViewerScene extends Phaser.Scene {
       .text(8, BASE_HEIGHT - 8, '', { fontFamily: 'monospace', fontSize: '8px', color: '#9aa0b0' })
       .setOrigin(0, 1);
     this.helpText.setText(
-      'Left/Right: frame   Up/Down: clip   Q/E: character   F: flip facing   H: toggle overlay   Esc: exit',
+      'Left/Right: frame   Up/Down: clip   Q/E: character   F: flip facing   H: toggle overlay   R: real/rig art   Esc: exit',
     );
 
     // Raw window listener rather than Phaser's built-in keyboard plugin: this project's own
@@ -162,10 +185,34 @@ export class AnimationViewerScene extends Phaser.Scene {
     return anim.frames.map((f) => String(f.textureKey));
   }
 
+  /** Resolves the clip to what should actually be drawn: real delivered frames when preferred and
+   * available for this fighter/clip, else the procedural rig frames (the "fallback for anything
+   * not yet converted" -- there is no partial/broken state here, just an automatic choice). */
+  private resolveFrames(clip: ClipId, visuals: FighterVisualSet): { keys: string[]; origins: { x: number; y: number }[]; scale: number; isReal: boolean } {
+    if (this.preferRealArt) {
+      const real = realFramesForClip(this.currentDef().id, clip);
+      if (real && real.length > 0) {
+        return {
+          keys: real.map((r) => r.key),
+          origins: real.map((r) => ({ x: r.meta.originX, y: r.meta.originY })),
+          scale: REAL_SPRITE_SCALE,
+          isReal: true,
+        };
+      }
+    }
+    const keys = this.framesFor(clip, visuals);
+    return {
+      keys,
+      origins: keys.map(() => ({ x: RIG_ORIGIN_X, y: RIG_ORIGIN_Y })),
+      scale: RIG_SPRITE_SCALE,
+      isReal: false,
+    };
+  }
+
   private step(dir: number): void {
-    const frames = this.framesFor(CLIPS[this.clipIndex], this.currentVisuals());
-    if (frames.length === 0) return;
-    this.frameIndex = Phaser.Math.Wrap(this.frameIndex + dir, 0, frames.length);
+    const { keys } = this.resolveFrames(CLIPS[this.clipIndex], this.currentVisuals());
+    if (keys.length === 0) return;
+    this.frameIndex = Phaser.Math.Wrap(this.frameIndex + dir, 0, keys.length);
     this.refresh();
   }
 
@@ -185,19 +232,36 @@ export class AnimationViewerScene extends Phaser.Scene {
     const def = this.currentDef();
     const visuals = this.currentVisuals();
     const clip = CLIPS[this.clipIndex];
-    const frames = this.framesFor(clip, visuals);
-    if (frames.length === 0) {
+    const resolved = this.resolveFrames(clip, visuals);
+    const { keys, origins, scale, isReal } = resolved;
+    this.showingRealArt = isReal;
+    if (keys.length === 0) {
       this.frameIndex = 0;
     } else {
-      this.frameIndex = Phaser.Math.Clamp(this.frameIndex, 0, frames.length - 1);
-      this.sprite.setTexture(frames[this.frameIndex]);
+      this.frameIndex = Phaser.Math.Clamp(this.frameIndex, 0, keys.length - 1);
+      this.sprite.setTexture(keys[this.frameIndex]);
+      const origin = origins[this.frameIndex];
+      this.sprite.setOrigin(origin.x, origin.y);
+      this.sprite.setScale(scale);
     }
     this.sprite.setFlipX(this.flipped);
 
+    const hasRealForClip = realFramesForClip(def.id, clip) !== null;
+    const artLabel =
+      keys.length === 0
+        ? 'n/a'
+        : isReal
+          ? 'real'
+          : !this.preferRealArt && hasRealForClip
+            ? 'rig (real art available, toggled off)'
+            : CHARACTERS_WITH_REAL_ART.has(def.id)
+              ? 'rig (no real frame for this clip)'
+              : 'rig';
     this.infoText.setText(
       [
         `Fighter: ${def.name} (${this.charIndex + 1}/${ALL_FIGHTER_IDS.length})`,
-        `Clip: ${clip} -- frame ${frames.length ? this.frameIndex + 1 : 0}/${frames.length}`,
+        `Clip: ${clip} -- frame ${keys.length ? this.frameIndex + 1 : 0}/${keys.length}`,
+        `Art: ${artLabel} (prefer real: ${this.preferRealArt ? 'on' : 'off'})`,
         `Facing: ${this.flipped ? 'left (flipped)' : 'right (authored)'}   Overlay: ${this.showOverlay ? 'on' : 'off'}`,
       ].join('\n'),
     );
@@ -213,15 +277,19 @@ export class AnimationViewerScene extends Phaser.Scene {
     this.overlayGfx.strokeLineShape(new Phaser.Geom.Line(this.sprite.x, this.sprite.y - 6, this.sprite.x, this.sprite.y + 6));
 
     const facing = this.flipped ? -1 : 1;
-    // Gameplay hit/hurtboxes are authored in raw sim units (1 unit = 1px at the sprite's default
-    // scale of 1). This viewer renders the sprite at SPRITE_SCALE for visibility, so every box
-    // must be scaled the same way around the shared origin (sprite.x, sprite.y) or it drifts out
-    // of alignment with the enlarged art -- exactly the kind of mismatch this overlay exists to catch.
+    // Gameplay hit/hurtboxes are authored in raw sim units (1 unit = 1px at the rig's default
+    // scale of 1, since the procedural canvas is drawn at sim-unit resolution). This viewer
+    // enlarges the sprite for visibility, so boxes are scaled the same way around the shared
+    // origin (sprite.x, sprite.y) -- accurate for the rig. For real art (`scale` = REAL_SPRITE_SCALE)
+    // this keeps the boxes moving/scaling with the sprite instead of using the wrong constant, but
+    // is NOT a calibrated match: REAL_SPRITE_SCALE was picked for on-screen size parity with the
+    // rig, not against Hunter's actual hurtbox dimensions, so treat overlay alignment as unverified
+    // whenever `showingRealArt` is true -- see CODEX_NEXT.md.
     const scaleBox = (box: ReturnType<typeof localBoxToWorld>): ReturnType<typeof localBoxToWorld> => ({
-      left: this.sprite.x + (box.left - this.sprite.x) * SPRITE_SCALE,
-      right: this.sprite.x + (box.right - this.sprite.x) * SPRITE_SCALE,
-      top: this.sprite.y + (box.top - this.sprite.y) * SPRITE_SCALE,
-      bottom: this.sprite.y + (box.bottom - this.sprite.y) * SPRITE_SCALE,
+      left: this.sprite.x + (box.left - this.sprite.x) * scale,
+      right: this.sprite.x + (box.right - this.sprite.x) * scale,
+      top: this.sprite.y + (box.top - this.sprite.y) * scale,
+      bottom: this.sprite.y + (box.bottom - this.sprite.y) * scale,
     });
     const strokeBox = (box: ReturnType<typeof localBoxToWorld>, color: number, alpha: number) => {
       const b = scaleBox(box);
@@ -242,8 +310,8 @@ export class AnimationViewerScene extends Phaser.Scene {
         strokeBox(localBoxToWorld(hit.box, this.sprite.x, this.sprite.y, facing), 0xff5555, 0.95);
       }
       if (move.projectile) {
-        const spawnX = this.sprite.x + move.projectile.spawnOffset.x * facing * SPRITE_SCALE;
-        const spawnY = this.sprite.y + move.projectile.spawnOffset.y * SPRITE_SCALE;
+        const spawnX = this.sprite.x + move.projectile.spawnOffset.x * facing * scale;
+        const spawnY = this.sprite.y + move.projectile.spawnOffset.y * scale;
         strokeBox(localBoxToWorld(move.projectile.box, spawnX, spawnY, facing), 0x8fe9ff, 0.95);
       }
     }
