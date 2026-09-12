@@ -1,0 +1,99 @@
+name: macOS installer
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run test:desktop:unit
+      - name: Build macOS disk images (arm64 + x64)
+        run: npm run dist:mac
+      - name: Locate the built .app bundles by actual architecture
+        run: |
+          set -euo pipefail
+          for bundle in $(find release -maxdepth 3 -name "*.app" -type d); do
+            exe="$bundle/Contents/MacOS/Silicon Valley Smackdown"
+            arch=$(lipo -archs "$exe")
+            echo "found $bundle ($arch)"
+            if [ "$arch" = "arm64" ]; then
+              echo "SVS_APP_ARM64=$exe" >> "$GITHUB_ENV"
+            elif [ "$arch" = "x86_64" ]; then
+              echo "SVS_APP_X64=$exe" >> "$GITHUB_ENV"
+            fi
+          done
+          test -n "${SVS_APP_ARM64:-}" || { echo "arm64 app bundle not found"; exit 1; }
+          test -n "${SVS_APP_X64:-}" || { echo "x64 app bundle not found"; exit 1; }
+      - name: Test the arm64 build (native on this runner)
+        run: SVS_DESKTOP_EXE="$SVS_APP_ARM64" npm run test:desktop
+      - name: Test the x64 build (via Rosetta)
+        run: |
+          if ! arch -x86_64 /usr/bin/true 2>/dev/null; then
+            echo "::warning::Rosetta is unavailable on this runner; skipping the x64 launch test. The x64 build only had its bundle structure verified."
+            exit 0
+          fi
+          SVS_DESKTOP_EXE="$SVS_APP_X64" npm run test:desktop
+      - name: Verify each disk image actually mounts and contains the app
+        run: |
+          set -euo pipefail
+          for dmg in release/*.dmg; do
+            mountpoint=$(mktemp -d)
+            hdiutil attach "$dmg" -mountpoint "$mountpoint" -nobrowse -quiet
+            test -d "$mountpoint/Silicon Valley Smackdown.app" || { echo "$dmg has no app bundle"; exit 1; }
+            hdiutil detach "$mountpoint" -quiet
+          done
+      - name: Disk image checksums
+        run: shasum -a 256 release/*.dmg | sed 's#release/##' > release/SHA256SUMS-macOS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Silicon-Valley-Smackdown-macOS
+          path: |
+            release/*.dmg
+            release/SHA256SUMS-macOS.txt
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: desktop-test-results-macos
+          path: test-results/
+          if-no-files-found: ignore
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: Silicon-Valley-Smackdown-macOS
+          path: release
+      - name: Create or update this tag's draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        # The Windows workflow races this one for the same tag; whichever finishes first creates
+        # the draft, the other just uploads its assets onto it. Try create first and fall back
+        # to upload on failure (rather than check-then-act) to close the race window.
+        run: |
+          set -euo pipefail
+          gh release create "$RELEASE_TAG" release/* --draft --verify-tag --title "Silicon Valley Smackdown $RELEASE_TAG" --generate-notes \
+            || gh release upload "$RELEASE_TAG" release/* --clobber

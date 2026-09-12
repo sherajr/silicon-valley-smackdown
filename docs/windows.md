@@ -35,7 +35,7 @@ The test uses a temporary profile; it does not alter your actual saves. Without 
 1. Merge the installer pull request after its Windows job passes.
 2. Update `package.json` and `package-lock.json` together for subsequent releases (`npm version patch --no-git-tag-version`), then commit the version change.
 3. Tag that commit with its version, for example `v1.0.0`, and push the tag.
-4. The successful workflow creates a **draft** GitHub Release containing the tested installer and checksum. Review the draft, test on a real Windows PC, and publish it when ready.
+4. The tag triggers both this workflow and the [macOS one](macos.md); each uploads its own assets onto the same **draft** GitHub Release (whichever finishes first creates it). Review the draft, test on a real Windows PC and a real Mac, and publish it when ready.
 
 Players download only the `*-Setup.exe` release asset. They do not need the source ZIP, development tools, or the unpacked build directory. Updates are installed manually by running the next installer; no auto-updater or network service is included.
 

@@ -24,3 +24,16 @@ nsis:
   createStartMenuShortcut: true
   runAfterFinish: true
   deleteAppDataOnUninstall: false
+mac:
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+  category: public.app-category.games
+  icon: desktop/resources/icon.icns
+  # No Apple Developer ID certificate is configured, so leave the app fully unsigned rather
+  # than have electron-builder fail looking for one or produce an ad-hoc signature that still
+  # trips Gatekeeper. See docs/macos.md for what this means for players.
+  identity: null
+  artifactName: Silicon-Valley-Smackdown-${version}-macOS-${arch}.${ext}
+dmg:
+  artifactName: Silicon-Valley-Smackdown-${version}-macOS-${arch}.${ext}

@@ -55,7 +55,9 @@ if (!app.requestSingleInstanceLock()) {
     window.focus();
   });
   app.whenReady().then(async () => {
-    Menu.setApplicationMenu(null);
+    // macOS needs a minimal app menu for Cmd+Q (and Cmd+H/Hide Others) to work at all -- an
+    // application menu of null drops those standard accelerators along with the rest of the menu.
+    Menu.setApplicationMenu(process.platform === 'darwin' ? Menu.buildFromTemplate([{ role: 'appMenu' }]) : null);
     session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
     session.defaultSession.setPermissionCheckHandler(() => false);
     session.defaultSession.webRequest.onBeforeRequest({ urls: ['http://*/*', 'https://*/*', 'ws://*/*', 'wss://*/*'] },

@@ -77,9 +77,15 @@ jobs:
         with:
           name: Silicon-Valley-Smackdown-Windows-x64
           path: release
-      - name: Create a draft release for review
+      - name: Create or update this tag's draft release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.ref_name }}
-        run: gh release create "$RELEASE_TAG" release/* --draft --verify-tag --title "Silicon Valley Smackdown $RELEASE_TAG" --generate-notes
+        # The macOS workflow races this one for the same tag; whichever finishes first creates
+        # the draft, the other just uploads its assets onto it. Try create first and fall back
+        # to upload on failure (rather than check-then-act) to close the race window.
+        run: |
+          set -euo pipefail
+          gh release create "$RELEASE_TAG" release/* --draft --verify-tag --title "Silicon Valley Smackdown $RELEASE_TAG" --generate-notes \
+            || gh release upload "$RELEASE_TAG" release/* --clobber

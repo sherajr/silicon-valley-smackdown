@@ -18,6 +18,7 @@
     "build:desktop": "npm run typecheck && node scripts/build-desktop.mjs",
     "desktop": "npm run build:desktop && electron .",
     "dist:win": "npm run build:desktop && electron-builder --win --x64 --publish never",
+    "dist:mac": "npm run build:desktop && electron-builder --mac --publish never",
     "test:desktop:unit": "node --test tests/desktop/assets.test.cjs",
     "test:desktop": "playwright test --config playwright.desktop.config.ts"
   },
