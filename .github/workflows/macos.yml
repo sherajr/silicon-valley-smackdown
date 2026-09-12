@@ -28,18 +28,24 @@ jobs:
       - name: Locate the built .app bundles by actual architecture
         run: |
           set -euo pipefail
+          arm64_exe=""
+          x64_exe=""
           while IFS= read -r -d '' bundle; do
             exe="$bundle/Contents/MacOS/Silicon Valley Smackdown"
             arch=$(lipo -archs "$exe")
             echo "found $bundle ($arch)"
             if [ "$arch" = "arm64" ]; then
-              echo "SVS_APP_ARM64=$exe" >> "$GITHUB_ENV"
+              arm64_exe="$exe"
             elif [ "$arch" = "x86_64" ]; then
-              echo "SVS_APP_X64=$exe" >> "$GITHUB_ENV"
+              x64_exe="$exe"
             fi
           done < <(find release -maxdepth 3 -name "*.app" -type d -print0)
-          test -n "${SVS_APP_ARM64:-}" || { echo "arm64 app bundle not found"; exit 1; }
-          test -n "${SVS_APP_X64:-}" || { echo "x64 app bundle not found"; exit 1; }
+          # $GITHUB_ENV only takes effect for later steps, not this one -- keep local
+          # variables above for the checks below and also export for the rest of the job.
+          test -n "$arm64_exe" || { echo "arm64 app bundle not found"; exit 1; }
+          test -n "$x64_exe" || { echo "x64 app bundle not found"; exit 1; }
+          echo "SVS_APP_ARM64=$arm64_exe" >> "$GITHUB_ENV"
+          echo "SVS_APP_X64=$x64_exe" >> "$GITHUB_ENV"
       - name: Test the arm64 build (native on this runner)
         run: SVS_DESKTOP_EXE="$SVS_APP_ARM64" npm run test:desktop
       - name: Test the x64 build (via Rosetta)
