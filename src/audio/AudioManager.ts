@@ -59,6 +59,11 @@ export class AudioManager {
 
   // Shared music transport state.
   private currentTrackId: string | null = null;
+  // Identifies which *backend* is actually sounding (synth track vs. a specific
+  // recorded URL), independent of the scene's track id. A custom-track selection
+  // changes this even when the scene's track id (currentTrackId) does not, which
+  // is exactly the case playMusic()'s same-track guard must not swallow.
+  private currentSourceKey: string | null = null;
   private stopped = true;
   private pausedForCombat = false;
 
@@ -194,9 +199,11 @@ export class AudioManager {
 
   playMusic(trackId: string): void {
     if (!this.ctx || !this.musicGain) return;
-    if (this.currentTrackId === trackId && !this.stopped && !this.pausedForCombat) return;
+    const desiredKey = this.sourceKeyFor(trackId);
+    if (this.currentSourceKey === desiredKey && !this.stopped && !this.pausedForCombat) return;
     this.stopMusic();
     this.currentTrackId = trackId;
+    this.currentSourceKey = desiredKey;
     this.stopped = false;
 
     if (this.customTrack) {
@@ -207,15 +214,24 @@ export class AudioManager {
     if (!track) {
       this.stopped = true;
       this.currentTrackId = null;
+      this.currentSourceKey = null;
       return;
     }
     this.beginSynthLoop(track, this.ctx.currentTime + 0.05, 0);
+  }
+
+  /** The recorded custom track (identified by its own URL) and the synthesized fallback
+   * (identified by scene track id) are different playback backends; a source-key change
+   * must always force a real transition even when the scene's track id is unchanged. */
+  private sourceKeyFor(trackId: string): string {
+    return this.customTrack ? `custom:${this.customTrack.url}` : `synth:${trackId}`;
   }
 
   stopMusic(): void {
     this.stopped = true;
     this.pausedForCombat = false;
     this.currentTrackId = null;
+    this.currentSourceKey = null;
     this.currentSynthTrack = null;
     this.pausedElapsedInLoop = null;
     this.cancelLoopTimer();

@@ -1,18 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { collectErrors, forceKO, getActiveSceneKey, getSimSnapshot, gotoGame, tap, waitFor } from './helpers';
-
-async function startVersusMatch(page: import('@playwright/test').Page) {
-  await tap(page, 'KeyV'); // Title -> Main Menu
-  await tap(page, 'KeyS', 40); // -> Two Players
-  await tap(page, 'KeyV'); // confirm -> Character Select
-  await tap(page, 'KeyV'); // P1 confirms Hunter
-  await page.waitForTimeout(150);
-  await tap(page, 'Numpad4'); // P2 confirms Kevin
-  await page.waitForTimeout(300);
-  await tap(page, 'KeyV'); // confirm stage
-  await page.waitForTimeout(300);
-  await page.waitForTimeout(2200); // versus intro auto-advance
-}
+import { collectErrors, forceKO, getActiveSceneKey, getSimSnapshot, gotoGame, startVersusMatch, tap, waitFor } from './helpers';
 
 /** Wins one round for `winner` by forcing the loser's health to 0 and waiting for the KO to register. */
 async function winRound(page: import('@playwright/test').Page, loser: 'p1' | 'p2') {

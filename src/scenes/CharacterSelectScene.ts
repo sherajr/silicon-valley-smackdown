@@ -102,6 +102,14 @@ export class CharacterSelectScene extends Phaser.Scene {
     this.statusText = this.add
       .text(BASE_WIDTH / 2, BASE_HEIGHT - 10, '', { fontFamily: 'monospace', fontSize: '8px', color: '#8a8a99' })
       .setOrigin(0.5, 0.5);
+    // The standing preview sprites sit close enough to the info panels that their scaled-up
+    // width can overlap the panel's leading characters (e.g. "KEVIN" clipped to "VIN"). Info
+    // text is created once here and only ever updated via setText(), so a single depth above
+    // the default-depth preview sprites (recreated per updatePreview()) keeps it legible for
+    // the scene's whole lifetime regardless of add-order.
+    this.p1InfoText.setDepth(5);
+    this.p2InfoText.setDepth(5);
+    this.statusText.setDepth(5);
 
     this.refreshCursors();
     this.updatePreview();

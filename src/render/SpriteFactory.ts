@@ -10,6 +10,7 @@ export const RIG_ORIGIN_Y = RIG_ANCHOR_Y / RIG_CANVAS_H;
 export interface FighterVisualSet {
   idleAnim: string;
   walkAnim: string;
+  dashAnim: string;
   victoryAnim: string;
   jumpFrames: string[];
   crouchFrames: string[];
@@ -53,12 +54,14 @@ export function buildFighterVisuals(scene: Phaser.Scene, def: CharacterDef): Fig
 
   const idleKeys = reg('idle', set.idle);
   const walkKeys = reg('walk', set.walk);
+  const dashKeys = reg('dash', set.dash);
   const victoryKeys = reg('victory', set.victory);
   const portraitKeys = reg('portrait', set.portrait);
 
   const visuals: FighterVisualSet = {
     idleAnim: registerAnim(scene, `${prefix}_idle`, idleKeys, 5, -1),
     walkAnim: registerAnim(scene, `${prefix}_walk`, walkKeys, 11, -1),
+    dashAnim: registerAnim(scene, `${prefix}_dash`, dashKeys, 16, -1),
     victoryAnim: registerAnim(scene, `${prefix}_victory`, victoryKeys, 3, -1),
     jumpFrames: reg('jump', set.jump),
     crouchFrames: reg('crouch', set.crouch),

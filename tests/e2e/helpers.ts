@@ -38,18 +38,60 @@ export async function getSimSnapshot(page: Page) {
     const w = window as unknown as { __e2eGame?: { scene: { getScenes: (active: boolean) => { scene: { key: string } }[] } } };
     const scenes = w.__e2eGame?.scene.getScenes(true) ?? [];
     const fight = scenes.find((s) => s.scene.key === 'Fight') as unknown as { matchState?: { sim: unknown; scoreP1: number; scoreP2: number; matchWinner: string | null } } | undefined;
-    const sim = fight?.matchState?.sim as { ended: boolean; result: { winner: string; reason: string } | null; p1: { health: number }; p2: { health: number } } | undefined;
+    const sim = fight?.matchState?.sim as
+      | {
+          ended: boolean;
+          result: { winner: string; reason: string } | null;
+          p1: { health: number; guard: number; state: string };
+          p2: { health: number; guard: number; state: string };
+        }
+      | undefined;
     if (!sim) return null;
     return {
       ended: sim.ended,
       result: sim.result,
       p1Health: sim.p1.health,
       p2Health: sim.p2.health,
+      p1Guard: sim.p1.guard,
+      p2Guard: sim.p2.guard,
+      p1State: sim.p1.state,
+      p2State: sim.p2.state,
       scoreP1: fight!.matchState!.scoreP1,
       scoreP2: fight!.matchState!.scoreP2,
       matchWinner: fight!.matchState!.matchWinner,
     };
   });
+}
+
+/** Navigates Title -> Main Menu -> Two Players -> Character Select (P1 Hunter, P2 Kevin) -> Stage -> Fight, using only real input, identical to a human clicking through Versus. */
+export async function startVersusMatch(page: Page): Promise<void> {
+  await tap(page, 'KeyV'); // Title -> Main Menu
+  await tap(page, 'KeyS', 40); // -> Two Players
+  await tap(page, 'KeyV'); // confirm -> Character Select
+  await tap(page, 'KeyV'); // P1 confirms Hunter
+  await page.waitForTimeout(150);
+  await tap(page, 'Numpad4'); // P2 confirms Kevin
+  await page.waitForTimeout(300);
+  await tap(page, 'KeyV'); // confirm stage
+  await page.waitForTimeout(300);
+  await page.waitForTimeout(2200); // versus intro auto-advance
+}
+
+/** Polls getSimSnapshot() until `predicate` matches a snapshot or the timeout elapses; returns the last snapshot seen. */
+export async function waitForSim(
+  page: Page,
+  predicate: (s: NonNullable<Awaited<ReturnType<typeof getSimSnapshot>>>) => boolean,
+  timeoutMs = 2000,
+  intervalMs = 30,
+): Promise<Awaited<ReturnType<typeof getSimSnapshot>>> {
+  const start = Date.now();
+  let snap = await getSimSnapshot(page);
+  while (Date.now() - start < timeoutMs) {
+    if (snap && predicate(snap)) return snap;
+    await new Promise((r) => setTimeout(r, intervalMs));
+    snap = await getSimSnapshot(page);
+  }
+  return snap;
 }
 
 /** Returns the key of the currently active (non-Boot) scene, e.g. 'Fight' or 'Results'. Requires the e2e hook. */

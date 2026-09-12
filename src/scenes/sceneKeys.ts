@@ -12,4 +12,5 @@ export const SceneKeys = {
   HowToPlay: 'HowToPlay',
   Settings: 'Settings',
   Credits: 'Credits',
+  AnimationViewer: 'AnimationViewer',
 } as const;

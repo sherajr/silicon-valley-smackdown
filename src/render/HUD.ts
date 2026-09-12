@@ -38,8 +38,11 @@ export class HUD {
       .text(BASE_WIDTH / 2, 60, '', { fontFamily: 'monospace', fontSize: '12px', color: '#ffd23f' })
       .setOrigin(0.5, 0.5)
       .setAlpha(0);
+    // y=132 deliberately sits below StageView's background sign band (GROUND_Y-120, +/- 18 --
+    // e.g. Castro Street's centered "$9 Pour Over" sign lands at y=92) and above fighters'
+    // heads, so the K.O./round announcement never visually collides with stage set dressing.
     this.roundBanner = scene.add
-      .text(BASE_WIDTH / 2, 96, '', { fontFamily: 'monospace', fontSize: '18px', color: '#ffffff' })
+      .text(BASE_WIDTH / 2, 132, '', { fontFamily: 'monospace', fontSize: '18px', color: '#ffffff' })
       .setOrigin(0.5, 0.5)
       .setAlpha(0);
 

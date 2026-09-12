@@ -1,20 +1,21 @@
 import type { Pose, RectStyle } from './FighterRig';
 import {
   airStrikeArchetype,
-  blockPose,
+  blockFrames,
   buildFor,
   counterStanceArchetype,
-  crouchPose,
+  crouchFrames,
   crouchStrikeArchetype,
+  dashFrames,
   grabArchetype,
   heavyLungeArchetype,
-  hitstunPose,
+  hitstunFrames,
   hookArchetype,
   idleFrames,
   jabArchetype,
-  jumpPose,
+  jumpFrames,
   kickArchetype,
-  knockdownPose,
+  knockdownFrames,
   koPose,
   lowSweepArchetype,
   portraitPose,
@@ -23,7 +24,7 @@ import {
   targetPointArchetype,
   throwArchetype,
   victoryPose,
-  wakeupPose,
+  wakeupFrames,
   walkFrames,
   withHairStyle,
   withProp,
@@ -35,6 +36,7 @@ import type { CharacterDef, MoveKind } from '../sim/types';
 export interface CharacterFrameSet {
   idle: Pose[];
   walk: Pose[];
+  dash: Pose[];
   jump: Pose[];
   crouch: Pose[];
   block: Pose[];
@@ -77,12 +79,13 @@ function buildFrameSet(def: CharacterDef, recipe: RigRecipe): CharacterFrameSet 
     // by the specific moves that throw or swing it (see `moves` below).
     idle: hair(idleFrames(b)),
     walk: hair(walkFrames(b)),
-    jump: hair([jumpPose(b)]),
-    crouch: hair([crouchPose(b)]),
-    block: hair([blockPose(b)]),
-    hitstun: hair([hitstunPose(b)]),
-    knockdown: hair([knockdownPose(b)]),
-    wakeup: hair([wakeupPose(b)]),
+    dash: hair(dashFrames(b)),
+    jump: hair(jumpFrames(b)),
+    crouch: hair(crouchFrames(b)),
+    block: hair(blockFrames(b)),
+    hitstun: hair(hitstunFrames(b)),
+    knockdown: hair(knockdownFrames(b)),
+    wakeup: hair(wakeupFrames(b)),
     victory: hair([withStandingProp(victoryPose(b), recipe.victoryProp ? recipe.victoryProp(b) : null)]),
     ko: hair([koPose(b)]),
     portrait: hair([withStandingProp(portraitPose(b), recipe.portraitProp ? recipe.portraitProp(b) : null)]),

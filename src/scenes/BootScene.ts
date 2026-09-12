@@ -15,6 +15,7 @@ export class BootScene extends Phaser.Scene {
     for (const id of ALL_FIGHTER_IDS) {
       buildFighterVisuals(this, CHARACTERS[id]);
     }
-    this.scene.start(SceneKeys.Title);
+    const devViewer = new URLSearchParams(location.search).get('animviewer') === '1';
+    this.scene.start(devViewer ? SceneKeys.AnimationViewer : SceneKeys.Title);
   }
 }

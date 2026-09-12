@@ -274,8 +274,8 @@ export class FightScene extends Phaser.Scene {
 
   private renderFrame(delta: number): void {
     const sim = this.matchState.sim;
-    this.p1View.update(sim.p1, ARENA_OFFSET_X, this.p1FlashThisFrame);
-    this.p2View.update(sim.p2, ARENA_OFFSET_X, this.p2FlashThisFrame);
+    this.p1View.update(sim.p1, ARENA_OFFSET_X, this.p1FlashThisFrame, delta);
+    this.p2View.update(sim.p2, ARENA_OFFSET_X, this.p2FlashThisFrame, delta);
     this.p1FlashThisFrame = false;
     this.p2FlashThisFrame = false;
     this.effects.updateProjectiles(sim.projectiles);

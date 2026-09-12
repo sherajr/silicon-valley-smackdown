@@ -13,6 +13,7 @@ import { EndingScene } from './scenes/EndingScene';
 import { HowToPlayScene } from './scenes/HowToPlayScene';
 import { SettingsScene } from './scenes/SettingsScene';
 import { CreditsScene } from './scenes/CreditsScene';
+import { AnimationViewerScene } from './scenes/AnimationViewerScene';
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -26,6 +27,12 @@ const config: Phaser.Types.Core.GameConfig = {
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
+    // Renders at a crisp 960x540 physical resolution while every gameplay/HUD coordinate,
+    // hitbox, speed, and jump height stays authored in the original 480x270 (BASE_WIDTH x
+    // BASE_HEIGHT) logical space -- Phaser's Scale Manager applies this as a pure backing-
+    // resolution multiplier (nearest-neighbor, since pixelArt is on below), never as a
+    // change to the coordinate system CombatSim and every view already use.
+    zoom: Phaser.Scale.ZOOM_2X,
   },
   scene: [
     BootScene,
@@ -41,6 +48,7 @@ const config: Phaser.Types.Core.GameConfig = {
     HowToPlayScene,
     SettingsScene,
     CreditsScene,
+    AnimationViewerScene,
   ],
 };
 
