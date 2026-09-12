@@ -1,0 +1,26 @@
+appId: com.sherajr.siliconvalleysmackdown
+productName: Silicon Valley Smackdown
+asar: true
+npmRebuild: false
+directories:
+  output: release
+  buildResources: desktop/resources
+files:
+  - dist/**/*
+  - desktop/*.cjs
+  - package.json
+  - '!node_modules/**/*'
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: desktop/resources/icon.ico
+  artifactName: Silicon-Valley-Smackdown-${version}-Windows-${arch}-Setup.${ext}
+nsis:
+  oneClick: true
+  perMachine: false
+  allowElevation: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  runAfterFinish: true
+  deleteAppDataOnUninstall: false
