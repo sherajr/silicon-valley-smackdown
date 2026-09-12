@@ -4,9 +4,21 @@ A funny, original, 2D arcade fighting game built with **TypeScript, Vite, and Ph
 
 All six fighters now use real pixel-art sprite sheets (idle, walk, attack, and jump/crouch/block/hurt poses) plus painted stage backgrounds. The original synthesized soundtrack is still generated at runtime by this project's own code (`src/audio`); nothing is a licensed recording bundled into the repo. The one exception is opt-in and local to your own session: **Settings → Audio → Choose Music File** lets you point the game at an MP3/WAV on your own machine to play as the soundtrack instead of the built-in score (see [Music](#music) below). That file is never uploaded, bundled, or persisted — it's re-selected each session.
 
-## Requirements
+## Install and play on Windows
 
-- Node.js 18+ (developed and tested on Node 22)
+Once a Windows release has been published, download **Silicon-Valley-Smackdown-1.0.0-Windows-x64-Setup.exe** (or the newer version) from [Releases](https://github.com/sherajr/silicon-valley-smackdown/releases). Double-click it to install and launch the game. Afterward, use the desktop or Start menu shortcut.
+
+- Intended for Windows 10/11 on an Intel/AMD 64-bit PC. ARM64 and 32-bit Windows installers are not provided.
+- No Node.js, terminal, browser installation, account, or internet connection is needed to play. All game art, code, and the synthesized soundtrack are included.
+- Press **F11** to toggle fullscreen. **Escape** still pauses the game; **Alt+F4** closes it.
+- Settings and unlocks are stored in `%APPDATA%\Silicon Valley Smackdown`, separately from browser saves. Installing a newer version preserves them. Uninstall through Windows Settings → Apps; saved data is retained.
+- Initial builds are unsigned, so Windows may show an unknown-publisher or SmartScreen warning. Verify the source and the included SHA-256 checksum; signing for public distribution is a separate release step.
+
+If no release is available yet, a maintainer can build one using the [Windows packaging instructions](docs/windows.md). Successful **Windows installer** workflow runs also include the installer as a downloadable artifact (GitHub wraps artifacts in a ZIP; extract it first).
+
+## Development requirements
+
+- Node.js 22.12+ (Node 22 LTS recommended)
 - A modern desktop browser (Chrome, Edge, Firefox) for actual play
 - A keyboard. Two players share one keyboard for local versus play.
 
@@ -30,6 +42,10 @@ Open the printed local URL (typically `http://localhost:5173`). No account, API 
 | `npm run build` | Type-check, then produce a static production build in `dist/` |
 | `npm run preview` | Serve the built `dist/` output locally, exactly as it will run in production |
 | `npm run test:e2e` | Playwright end-to-end browser suite (builds and previews the app automatically) |
+| `npm run desktop` | Build and launch the desktop game locally |
+| `npm run dist:win` | Build a Windows x64 installer in `release/` (run on Windows) |
+| `npm run test:desktop:unit` | Check desktop asset path isolation |
+| `npm run test:desktop` | Desktop smoke test; requires `npm run build:desktop` first |
 
 ### Deploying to a subpath
 
