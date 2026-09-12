@@ -54,7 +54,7 @@ jobs:
             echo "::warning::Rosetta is unavailable on this runner; skipping the x64 launch test. The x64 build only had its bundle structure verified."
             exit 0
           fi
-          SVS_DESKTOP_EXE="$SVS_APP_X64" npm run test:desktop
+          DEBUG=pw:browser SVS_DESKTOP_EXE="$SVS_APP_X64" npm run test:desktop
       - name: Verify each disk image actually mounts and contains the app
         run: |
           set -euo pipefail

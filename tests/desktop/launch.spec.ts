@@ -9,8 +9,9 @@ test('installed game loads art, plays offline, and retains settings after relaun
   let application: ElectronApplication | undefined;
   const launch = () => electron.launch({
     // A freshly installed .exe can take a while on its very first run if Windows Defender/
-    // SmartScreen scans it before letting it start; a generous timeout avoids CI flakiness.
-    timeout: 45_000,
+    // SmartScreen scans it before letting it start, and an x64 build running under Rosetta on
+    // Apple Silicon CI is slower still to boot -- a generous timeout avoids CI flakiness.
+    timeout: 90_000,
     ...(process.env.SVS_DESKTOP_EXE ? { executablePath: process.env.SVS_DESKTOP_EXE } : {}),
     args: [
       ...(process.env.SVS_DESKTOP_EXE ? [] : ['.']),
