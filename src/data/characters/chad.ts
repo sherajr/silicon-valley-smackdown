@@ -20,11 +20,11 @@ export const CHAD: CharacterDef = {
   visual: {
     skin: '#e4b48a',
     hair: '#3a2a18',
-    primary: '#dedad0', // casual expensive quarter-zip
-    secondary: '#1c1c22', // sunglasses / dark tee
-    pants: '#c7bfa8', // chinos
-    accent: '#c9a227', // term sheet / gold accents
-    outline: '#141014',
+    primary: '#00e5ff',
+    secondary: '#fff23d',
+    pants: '#7f268d',
+    accent: '#fff23d',
+    outline: '#100a30',
   },
   moves: {
     basic1: move('chad_basic1', 'Due Diligence I', 'Basic', 'basic1', 'mid', 7, 8, {

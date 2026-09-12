@@ -1,3 +1,4 @@
+import { drawArcadeBackdrop } from '../render/arcadeTheme';
 import Phaser from 'phaser';
 import { SceneKeys } from './sceneKeys';
 import { GameContext } from '../GameContext';
@@ -28,9 +29,9 @@ export class StageSelectScene extends Phaser.Scene {
     this.powerups = this.mode === 'training' ? false : GameContext.session.powerupsEnabled;
     this.index = 0;
     this.choosingPowerup = false;
-    this.cameras.main.setBackgroundColor('#101018');
+    drawArcadeBackdrop(this);
 
-    this.add.text(BASE_WIDTH / 2, 12, 'CHOOSE YOUR STAGE', { fontFamily: 'monospace', fontSize: '11px', color: '#ffd23f' }).setOrigin(0.5, 0.5);
+    this.add.text(BASE_WIDTH / 2, 12, 'CHOOSE YOUR STAGE', { fontFamily: 'monospace', fontSize: '11px', color: '#fff23d' }).setOrigin(0.5, 0.5);
 
     const spacing = 150;
     const startX = BASE_WIDTH / 2 - spacing;
@@ -39,18 +40,18 @@ export class StageSelectScene extends Phaser.Scene {
       const x = startX + i * spacing;
       const y = 100;
       const bg = Phaser.Display.Color.HexStringToColor(stage.palette.mid).color;
-      const rect = this.add.rectangle(x, y, 128, 72, bg).setStrokeStyle(1, 0x33334a);
+      const rect = this.add.rectangle(x, y, 128, 72, bg).setStrokeStyle(1, 0x854ac7);
       this.tiles.push(rect);
-      this.add.text(x, y + 46, stage.name, { fontFamily: 'monospace', fontSize: '7px', color: '#d8d8ee', align: 'center', wordWrap: { width: 130 } }).setOrigin(0.5, 0);
-      this.add.text(x, y - 46, stage.location, { fontFamily: 'monospace', fontSize: '6px', color: '#8a8a99' }).setOrigin(0.5, 1);
+      this.add.text(x, y + 46, stage.name, { fontFamily: 'monospace', fontSize: '7px', color: '#f5f1ff', align: 'center', wordWrap: { width: 130 } }).setOrigin(0.5, 0);
+      this.add.text(x, y - 46, stage.location, { fontFamily: 'monospace', fontSize: '6px', color: '#b9b3da' }).setOrigin(0.5, 1);
     });
 
-    this.cursor = this.add.rectangle(0, 0, 134, 78).setStrokeStyle(2, 0xffd23f);
+    this.cursor = this.add.rectangle(0, 0, 134, 78).setStrokeStyle(2, 0xfff23d);
     this.refreshCursor();
 
     if (this.mode === 'versus') {
       this.powerupText = this.add
-        .text(BASE_WIDTH / 2, 190, '', { fontFamily: 'monospace', fontSize: '9px', color: '#c8c8d8' })
+        .text(BASE_WIDTH / 2, 190, '', { fontFamily: 'monospace', fontSize: '9px', color: '#f5f1ff' })
         .setOrigin(0.5, 0.5);
       this.refreshPowerupText();
     } else {
@@ -58,7 +59,7 @@ export class StageSelectScene extends Phaser.Scene {
     }
 
     this.add
-      .text(BASE_WIDTH / 2, BASE_HEIGHT - 14, 'Left/Right to choose, Basic to confirm, Block to go back', { fontFamily: 'monospace', fontSize: '7px', color: '#7a7f96' })
+      .text(BASE_WIDTH / 2, BASE_HEIGHT - 22, 'Left/Right to choose, Basic to confirm, Block to go back', { fontFamily: 'monospace', fontSize: '7px', color: '#b9b3da' })
       .setOrigin(0.5, 0.5);
   }
 

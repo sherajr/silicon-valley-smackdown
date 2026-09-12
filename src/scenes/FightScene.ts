@@ -1,3 +1,4 @@
+import { isHitWindowActive } from '../sim/moveTiming';
 import Phaser from 'phaser';
 import { SceneKeys } from './sceneKeys';
 import { GameContext } from '../GameContext';
@@ -22,7 +23,7 @@ import { hurtboxFor } from '../sim/FighterRuntime';
 const ARENA_OFFSET_X = 0;
 const MAX_STEPS_PER_FRAME = 6;
 /** Fighters render a bit larger than their collision box for on-screen presence and readability. */
-const GAMEPLAY_SPRITE_SCALE = 0.72;
+const GAMEPLAY_SPRITE_SCALE = 1;
 
 type Phase = 'playing' | 'paused' | 'roundEndPause' | 'matchEndPause';
 
@@ -67,6 +68,7 @@ export class FightScene extends Phaser.Scene {
     this.roundBannerShown = false;
     this.crunchNotified = false;
     this.accumulator = 0;
+    this.frameCounter = 0;
     this.mode = GameContext.session.mode ?? 'versus';
 
     const { p1Fighter, p2Fighter, stage, powerupsEnabled } = GameContext.session;
@@ -299,7 +301,7 @@ export class FightScene extends Phaser.Scene {
       if (f.state !== 'attack' || !f.activeMove) continue;
       const move = f.activeMove;
       for (const hit of move.def.hits) {
-        const active = move.frame >= hit.startupFrame && move.frame < hit.startupFrame + hit.activeFrames;
+        const active = isHitWindowActive(hit, move.frame);
         if (!active) continue;
         const box = localBoxToWorld(hit.box, f.x, f.y, f.facing);
         this.hitboxGfx.lineStyle(1, 0xff5555, 0.95);
@@ -364,9 +366,9 @@ export class FightScene extends Phaser.Scene {
   private buildPauseMenu(): void {
     this.pauseContainer = this.add.container(BASE_WIDTH / 2, 135);
     this.pauseContainer.setDepth(1000);
-    const bg = this.add.rectangle(0, 0, 220, 160, 0x0a0a12, 0.92).setStrokeStyle(1, 0x33334a);
+    const bg = this.add.rectangle(0, 0, 220, 160, 0x100a30, 0.92).setStrokeStyle(1, 0x854ac7);
     this.pauseContainer.add(bg);
-    const title = this.add.text(0, -65, 'PAUSED', { fontFamily: 'monospace', fontSize: '12px', color: '#ffd23f' }).setOrigin(0.5, 0.5);
+    const title = this.add.text(0, -65, 'PAUSED', { fontFamily: 'monospace', fontSize: '12px', color: '#fff23d' }).setOrigin(0.5, 0.5);
     this.pauseContainer.add(title);
 
     this.pauseMenu = new MenuList(this, 0, -30, 20, [
@@ -382,22 +384,24 @@ export class FightScene extends Phaser.Scene {
   private buildMoveList(): void {
     this.moveListContainer = this.add.container(BASE_WIDTH / 2, 135);
     this.moveListContainer.setDepth(1100);
-    const bg = this.add.rectangle(0, 0, 260, 200, 0x0a0a12, 0.95).setStrokeStyle(1, 0x33334a);
+    const bg = this.add.rectangle(0, 0, 420, 210, 0x100a30, 0.95).setStrokeStyle(1, 0x854ac7);
     this.moveListContainer.add(bg);
     const moves = this.p1Def.moves;
     const b = GameContext.save.bindings.p1;
     const lines = [
-      `${moves.basic1.command} / ${moves.basic2.name} / ${moves.basic3.name}`,
-      `Fwd+Basic: ${moves.forwardBasic.name}`,
-      `Special: ${moves.special.name}`,
-      `Down+Special: ${moves.downSpecial.name}`,
-      `Grab: ${moves.grab.name}`,
-      `Super: ${moves.super.name}`,
-      '',
-      `Basic ${b.basic.join('/')}  Special ${b.special.join('/')}`,
-      `Block ${b.block.join('/')}  Grab ${b.grab.join('/')}`,
+      'MOVE FRAME DATA / 60 FRAMES = 1 SECOND',
+      'MOVE                        COMMAND                 START / ACTIVE / REC / TOTAL',
+      ...Object.values(moves).map(m => {
+        const active = m.hits.length
+          ? m.hits.map(h => h.startupFrame + '-' + (h.startupFrame + h.activeFrames - 1)).join(',')
+          : m.projectile ? 'shot@' + (m.projectile.releaseFrame ?? m.startup)
+          : m.isCounter ? 'counter' : 'target';
+        return m.name.padEnd(28) + m.command.padEnd(24) + m.startup + ' / ' + active + ' / ' + m.recovery + ' / ' + m.totalFrames;
+      }),
+      'Active ranges use zero-based move frames.',
+      'Basic ' + b.basic.join('/') + '  Special ' + b.special.join('/'),
     ];
-    const text = this.add.text(0, -85, lines.join('\n'), { fontFamily: 'monospace', fontSize: '8px', color: '#d8d8ee', lineSpacing: 4, align: 'left' }).setOrigin(0.5, 0);
+    const text = this.add.text(0, -85, lines.join('\n'), { fontFamily: 'monospace', fontSize: '7px', color: '#f5f1ff', lineSpacing: 4, align: 'left' }).setOrigin(0.5, 0);
     this.moveListContainer.add(text);
     this.moveListContainer.setVisible(false);
   }
@@ -423,6 +427,8 @@ export class FightScene extends Phaser.Scene {
   }
 
   private exitPause(): void {
+    this.moveListVisible = false;
+    this.moveListContainer.setVisible(false);
     this.phase = 'playing';
     this.pauseContainer.setVisible(false);
     this.accumulator = 0;

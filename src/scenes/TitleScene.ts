@@ -1,3 +1,4 @@
+import { drawArcadeBackdrop } from '../render/arcadeTheme';
 import Phaser from 'phaser';
 import { SceneKeys } from './sceneKeys';
 import { GameContext } from '../GameContext';
@@ -22,13 +23,13 @@ export class TitleScene extends Phaser.Scene {
 
   create(): void {
     this.guard.arm(GameContext.input);
-    this.cameras.main.setBackgroundColor('#0a0a14');
+    drawArcadeBackdrop(this);
 
     const title = this.add
       .text(BASE_WIDTH / 2, 58, 'SILICON VALLEY\nSMACKDOWN', {
         fontFamily: 'monospace',
         fontSize: '22px',
-        color: '#ffd23f',
+        color: '#fff23d',
         align: 'center',
         lineSpacing: 6,
       })
@@ -39,7 +40,7 @@ export class TitleScene extends Phaser.Scene {
       .text(BASE_WIDTH / 2, 102, 'a fictional arcade fighting parody', {
         fontFamily: 'monospace',
         fontSize: '9px',
-        color: '#8892b0',
+        color: '#a8eaff',
       })
       .setOrigin(0.5, 0.5);
 
@@ -48,7 +49,7 @@ export class TitleScene extends Phaser.Scene {
       .setOrigin(0.5, 0.5);
     this.tweens.add({ targets: this.prompt, alpha: { from: 1, to: 0.15 }, duration: 650, yoyo: true, repeat: -1 });
 
-    this.add.rectangle(BASE_WIDTH / 2, BASE_HEIGHT - 12, BASE_WIDTH, 2, 0xffd23f, 0.35);
+    this.add.rectangle(BASE_WIDTH / 2, BASE_HEIGHT - 12, BASE_WIDTH, 2, 0xfff23d, 0.35);
 
     const n = ALL_FIGHTER_IDS.length;
     ALL_FIGHTER_IDS.forEach((id, i) => {
@@ -56,7 +57,7 @@ export class TitleScene extends Phaser.Scene {
       const x = BASE_WIDTH / 2 + (i - (n - 1) / 2) * 64;
       const spr = this.add.sprite(x, BASE_HEIGHT - 12, visuals.idleSheet, 0);
       spr.setOrigin(0.5, 1);
-      spr.setScale(0.55);
+      spr.setScale(1);
       spr.play(visuals.idleAnim);
     });
 

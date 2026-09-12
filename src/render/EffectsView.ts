@@ -208,7 +208,7 @@ export class EffectsView {
   spawnKoBurst(worldX: number, worldY: number): void {
     for (let i = 0; i < 8; i++) {
       const angle = (i / 8) * Math.PI * 2;
-      const gfx = this.scene.add.rectangle(this.arenaOffsetX + worldX, worldY, 5, 5, 0xffd23f);
+      const gfx = this.scene.add.rectangle(this.arenaOffsetX + worldX, worldY, 5, 5, 0xfff23d);
       gfx.setDepth(650);
       this.scene.tweens.add({
         targets: gfx,

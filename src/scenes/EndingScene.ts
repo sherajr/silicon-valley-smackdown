@@ -1,3 +1,4 @@
+import { drawArcadeBackdrop } from '../render/arcadeTheme';
 import Phaser from 'phaser';
 import { SceneKeys } from './sceneKeys';
 import { GameContext } from '../GameContext';
@@ -21,13 +22,13 @@ export class EndingScene extends Phaser.Scene {
   create(): void {
     this.guard.arm(GameContext.input);
     GameContext.audio.playMusic('victory');
-    this.cameras.main.setBackgroundColor('#0a0a12');
+    drawArcadeBackdrop(this);
 
     const fighterId = GameContext.session.arcadeFighter;
     const def = CHARACTERS[fighterId];
     const lines = ARCADE_ENDINGS[fighterId];
 
-    this.add.text(BASE_WIDTH / 2, 20, 'THE LAST FUNDING ROUND -- SECURED', { fontFamily: 'monospace', fontSize: '10px', color: '#ffd23f' }).setOrigin(0.5, 0.5);
+    this.add.text(BASE_WIDTH / 2, 20, 'THE LAST FUNDING ROUND -- SECURED', { fontFamily: 'monospace', fontSize: '10px', color: '#fff23d' }).setOrigin(0.5, 0.5);
 
     const view = new FighterView(this, def, BASE_WIDTH / 2, 130);
     view.sprite.setScale(2.2);
@@ -36,7 +37,7 @@ export class EndingScene extends Phaser.Scene {
       .text(BASE_WIDTH / 2, 175, lines.join('\n\n'), {
         fontFamily: 'monospace',
         fontSize: '8px',
-        color: '#d8d8ee',
+        color: '#f5f1ff',
         align: 'center',
         wordWrap: { width: BASE_WIDTH - 60 },
       })

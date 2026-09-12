@@ -20,11 +20,11 @@ export const HUNTER: CharacterDef = {
   visual: {
     skin: '#e8b48a',
     hair: '#4a3324', // chestnut brown
-    primary: '#9098a3', // gray hoodie
-    secondary: '#262a33', // dark quilted puffer vest
-    pants: '#3b5a86', // blue jeans
-    accent: '#59c1d6', // cyan rim light / sneaker accent / smartwatch
-    outline: '#151018',
+    primary: '#00e5ff',
+    secondary: '#ff36c8',
+    pants: '#5031a6',
+    accent: '#fff23d',
+    outline: '#100a30',
   },
   moves: {
     basic1: move('hunter_basic1', 'Disruptive Innovation I', 'Basic', 'basic1', 'mid', 4, 5, {

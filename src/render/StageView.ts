@@ -26,26 +26,16 @@ export class StageView {
     this.container.setDepth(-100);
 
     const { palette } = stage;
-    const hasArt = scene.textures.exists(`stage_${stage.id}`);
-    if (hasArt) {
-      const bg = scene.add.image(BASE_WIDTH / 2, BASE_HEIGHT / 2, `stage_${stage.id}`);
-      bg.setDisplaySize(BASE_WIDTH, BASE_HEIGHT);
-      this.container.add(bg);
-      const floorLine = scene.add.rectangle(BASE_WIDTH / 2, GROUND_Y, BASE_WIDTH, 2, hex(palette.accent), 0.55);
-      this.container.add(floorLine);
-    } else {
-      const sky = scene.add.graphics();
-      sky.fillGradientStyle(hex(palette.sky[0]), hex(palette.sky[0]), hex(palette.sky[1]), hex(palette.sky[1]), 1);
-      sky.fillRect(0, 0, BASE_WIDTH, GROUND_Y);
-      this.container.add(sky);
-      this.buildSkyDressing(stage);
-
-      this.buildBand(palette.far, GROUND_Y - 92, 0.5, 7, 32, false);
-      this.buildBand(palette.mid, GROUND_Y - 58, 0.42, 5, 46, true);
-      this.buildBand(palette.near, GROUND_Y - 28, 0.26, 4, 62, true);
-
-      this.buildFloor(palette.floor, palette.accent);
-    }
+    const sky = scene.add.graphics();
+    // Discrete sky bands preserve the arcade palette at native resolution.
+    sky.fillStyle(hex(palette.sky[0])).fillRect(0, 0, BASE_WIDTH, 90);
+    sky.fillStyle(hex(palette.sky[1])).fillRect(0, 90, BASE_WIDTH, GROUND_Y - 90);
+    this.container.add(sky);
+    this.buildSkyDressing(stage);
+    this.buildBand(palette.far, GROUND_Y - 92, 1, 7, 32, false);
+    this.buildBand(palette.mid, GROUND_Y - 58, 1, 5, 46, true);
+    this.buildBand(palette.near, GROUND_Y - 28, 1, 4, 62, true);
+    this.buildFloor(palette.floor, palette.accent);
 
     this.buildSigns(stage);
     this.buildAmbient(stage);
@@ -68,7 +58,7 @@ export class StageView {
       }
     } else {
       // A soft low sun/glow disc for the warmer daylight stages.
-      const sun = this.scene.add.circle(BASE_WIDTH * 0.78, GROUND_Y * 0.32, 22, hex(stage.palette.sky[1]), 0.35);
+      const sun = this.scene.add.rectangle(BASE_WIDTH * 0.78, GROUND_Y * 0.32, 40, 40, 0xfff23d);
       this.container.add(sun);
     }
   }
@@ -101,7 +91,7 @@ export class StageView {
         const wx = cx - w / 2 + marginX * (col + 1);
         const wy = cy - h / 2 + marginY * (r + 1);
         const lit = (r * cols + col + Math.round(cx / 7)) % 3 === 0;
-        const win = this.scene.add.rectangle(wx, wy, winW, winH, lit ? 0xffe6a0 : 0x11141c, lit ? 0.55 : 0.3 + parentAlpha * 0.2);
+        const win = this.scene.add.rectangle(wx, wy, winW, winH, lit ? 0xfff23d : 0x100a30, lit ? 0.55 : 0.3 + parentAlpha * 0.2);
         this.container.add(win);
         if (lit && Math.random() < 0.15) {
           const tw = this.scene.tweens.add({ targets: win, alpha: { from: 0.55, to: 0.2 }, duration: 1400 + ((wx * 7) % 900), yoyo: true, repeat: -1 });
@@ -117,7 +107,7 @@ export class StageView {
     // Subtle tiling/plank lines so the floor doesn't read as one flat slab.
     const lineColor = hex(accentColor);
     for (let x = -20; x < BASE_WIDTH + 20; x += 28) {
-      const line = this.scene.add.rectangle(x, GROUND_Y + (BASE_HEIGHT - GROUND_Y) / 2, 1, BASE_HEIGHT - GROUND_Y, lineColor, 0.08);
+      const line = this.scene.add.rectangle(x, GROUND_Y + (BASE_HEIGHT - GROUND_Y) / 2, 1, BASE_HEIGHT - GROUND_Y, lineColor, 0.4);
       this.container.add(line);
     }
     const floorLine = this.scene.add.rectangle(BASE_WIDTH / 2, GROUND_Y, BASE_WIDTH, 2, lineColor, 0.65);

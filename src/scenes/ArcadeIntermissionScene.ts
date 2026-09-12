@@ -1,3 +1,4 @@
+import { drawArcadeBackdrop } from '../render/arcadeTheme';
 import Phaser from 'phaser';
 import { SceneKeys } from './sceneKeys';
 import { GameContext } from '../GameContext';
@@ -24,7 +25,7 @@ export class ArcadeIntermissionScene extends Phaser.Scene {
   create(): void {
     this.guard.arm(GameContext.input);
     this.advanced = false;
-    this.cameras.main.setBackgroundColor('#0a0a12');
+    drawArcadeBackdrop(this);
     this.choosingDifficulty = GameContext.session.arcadeIndex === 0;
 
     if (this.choosingDifficulty) {
@@ -35,7 +36,7 @@ export class ArcadeIntermissionScene extends Phaser.Scene {
   }
 
   private showDifficultyPicker(): void {
-    this.add.text(BASE_WIDTH / 2, 60, 'CHOOSE DIFFICULTY', { fontFamily: 'monospace', fontSize: '14px', color: '#ffd23f' }).setOrigin(0.5, 0.5);
+    this.add.text(BASE_WIDTH / 2, 60, 'CHOOSE DIFFICULTY', { fontFamily: 'monospace', fontSize: '14px', color: '#fff23d' }).setOrigin(0.5, 0.5);
     const pick = (d: Difficulty) => {
       GameContext.session.difficulty = d;
       GameContext.save.lastDifficulty = d;
@@ -62,23 +63,23 @@ export class ArcadeIntermissionScene extends Phaser.Scene {
 
     const isBoss = stop.opponent === 'elon';
     this.add
-      .text(BASE_WIDTH / 2, 20, isBoss ? 'FINAL OPPONENT' : `MATCH ${arcadeIndex + 1} OF ${arcadeLadder.length}`, { fontFamily: 'monospace', fontSize: '9px', color: '#8a8a99' })
+      .text(BASE_WIDTH / 2, 20, isBoss ? 'FINAL OPPONENT' : `MATCH ${arcadeIndex + 1} OF ${arcadeLadder.length}`, { fontFamily: 'monospace', fontSize: '9px', color: '#b9b3da' })
       .setOrigin(0.5, 0.5);
     this.add.text(BASE_WIDTH / 2, 38, stageDef.name.toUpperCase(), { fontFamily: 'monospace', fontSize: '9px', color: stageDef.palette.neon }).setOrigin(0.5, 0.5);
 
     if (isBoss) {
-      this.add.text(BASE_WIDTH / 2, 60, 'Rooftop lights dim. A rocket descends.', { fontFamily: 'monospace', fontSize: '8px', color: '#8a8a99' }).setOrigin(0.5, 0.5);
+      this.add.text(BASE_WIDTH / 2, 60, 'Rooftop lights dim. A rocket descends.', { fontFamily: 'monospace', fontSize: '8px', color: '#b9b3da' }).setOrigin(0.5, 0.5);
     }
 
     const view = new FighterView(this, opponentDef, BASE_WIDTH / 2, 160);
     view.sprite.setScale(2.4);
 
     this.add.text(BASE_WIDTH / 2, 205, opponentDef.name.toUpperCase(), { fontFamily: 'monospace', fontSize: '12px', color: '#ff6b6b' }).setOrigin(0.5, 0.5);
-    this.add.text(BASE_WIDTH / 2, 220, `"${opponentDef.introLine}"`, { fontFamily: 'monospace', fontSize: '8px', color: '#c8c8d8' }).setOrigin(0.5, 0.5);
+    this.add.text(BASE_WIDTH / 2, 220, `"${opponentDef.introLine}"`, { fontFamily: 'monospace', fontSize: '8px', color: '#f5f1ff' }).setOrigin(0.5, 0.5);
     this.add.text(BASE_WIDTH / 2, 235, `${playerDef.name}: "Let's get this over with."`, { fontFamily: 'monospace', fontSize: '7px', color: '#8fa0ff' }).setOrigin(0.5, 0.5);
 
     this.add
-      .text(BASE_WIDTH / 2, BASE_HEIGHT - 12, 'Press Basic to continue', { fontFamily: 'monospace', fontSize: '7px', color: '#7a7f96' })
+      .text(BASE_WIDTH / 2, BASE_HEIGHT - 12, 'Press Basic to continue', { fontFamily: 'monospace', fontSize: '7px', color: '#b9b3da' })
       .setOrigin(0.5, 0.5);
 
     this.time.delayedCall(2600, () => this.advance());

@@ -1,3 +1,4 @@
+import { drawArcadeBackdrop } from '../render/arcadeTheme';
 import Phaser from 'phaser';
 import { SceneKeys } from './sceneKeys';
 import { GameContext } from '../GameContext';
@@ -18,10 +19,10 @@ export class MainMenuScene extends Phaser.Scene {
   create(): void {
     this.guard.arm(GameContext.input);
     GameContext.audio.playMusic('menu');
-    this.cameras.main.setBackgroundColor('#0b2a4a');
+    drawArcadeBackdrop(this);
 
     this.add
-      .text(BASE_WIDTH / 2, 30, 'SILICON VALLEY SMACKDOWN', { fontFamily: 'monospace', fontSize: '13px', color: '#ffd23f' })
+      .text(BASE_WIDTH / 2, 30, 'SILICON VALLEY SMACKDOWN', { fontFamily: 'monospace', fontSize: '13px', color: '#fff23d' })
       .setOrigin(0.5, 0.5);
 
     this.menu = new MenuList(this, BASE_WIDTH / 2, 80, 22, [
@@ -34,7 +35,7 @@ export class MainMenuScene extends Phaser.Scene {
     ]);
 
     this.add
-      .text(BASE_WIDTH / 2, BASE_HEIGHT - 14, 'Up/Down to choose, Basic to confirm', { fontFamily: 'monospace', fontSize: '8px', color: '#7a7f96' })
+      .text(BASE_WIDTH / 2, BASE_HEIGHT - 22, 'Up/Down to choose, Basic to confirm', { fontFamily: 'monospace', fontSize: '8px', color: '#b9b3da' })
       .setOrigin(0.5, 0.5);
   }
 
