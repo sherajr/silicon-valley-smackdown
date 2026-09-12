@@ -18,7 +18,7 @@ export class MainMenuScene extends Phaser.Scene {
   create(): void {
     this.guard.arm(GameContext.input);
     GameContext.audio.playMusic('menu');
-    this.cameras.main.setBackgroundColor('#0e0e18');
+    this.cameras.main.setBackgroundColor('#0b2a4a');
 
     this.add
       .text(BASE_WIDTH / 2, 30, 'SILICON VALLEY SMACKDOWN', { fontFamily: 'monospace', fontSize: '13px', color: '#ffd23f' })
