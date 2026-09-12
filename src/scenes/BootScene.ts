@@ -15,12 +15,12 @@ export class BootScene extends Phaser.Scene {
     const h = this.scale.height;
     const bar = this.add.rectangle(w / 2, h / 2, 160, 8, 0x1a1a22);
     bar.setStrokeStyle(1, 0x2a2a33);
-    const fill = this.add.rectangle(w / 2 - 78, h / 2, 4, 6, 0xffd23f).setOrigin(0, 0.5);
+    const fill = this.add.rectangle(w / 2 - 78, h / 2, 4, 6, 0xfff23d).setOrigin(0, 0.5);
     this.add
       .text(w / 2, h / 2 - 22, 'LOADING SMACKDOWN', {
         fontFamily: 'monospace',
         fontSize: '10px',
-        color: '#ffd23f',
+        color: '#fff23d',
       })
       .setOrigin(0.5, 0.5);
     this.load.on('progress', (value: number) => {

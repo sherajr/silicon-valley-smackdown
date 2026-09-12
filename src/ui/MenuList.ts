@@ -25,7 +25,7 @@ export class MenuList {
       const t = scene.add.text(0, i * spacing, item.label, {
         fontFamily: 'monospace',
         fontSize: '14px',
-        color: item.disabled ? '#5a5a66' : '#d8d8ee',
+        color: item.disabled ? '#5a5a66' : '#f5f1ff',
         ...style,
       });
       t.setOrigin(0.5, 0.5);
@@ -43,7 +43,7 @@ export class MenuList {
   private refreshVisuals(): void {
     this.texts.forEach((t, i) => {
       const focused = i === this.index;
-      t.setColor(this.items[i].disabled ? '#5a5a66' : focused ? '#ffd23f' : '#d8d8ee');
+      t.setColor(this.items[i].disabled ? '#5a5a66' : focused ? '#fff23d' : '#00e5ff');
       t.setText((focused ? '> ' : '  ') + this.items[i].label);
       t.setScale(focused ? 1.08 : 1);
     });

@@ -2,7 +2,16 @@
 
 A funny, original, 2D arcade fighting game built with **TypeScript, Vite, and Phaser**. Six fighters, three stages, a full single-player arcade run against a final boss (Elon), local two-player versus, training mode, pickups, and an original synthesized soundtrack — no accounts, no backend.
 
-All six fighters now use real pixel-art sprite sheets (idle, walk, attack, and jump/crouch/block/hurt poses) plus painted stage backgrounds. The original synthesized soundtrack is still generated at runtime by this project's own code (`src/audio`); nothing is a licensed recording bundled into the repo. The one exception is opt-in and local to your own session: **Settings → Audio → Choose Music File** lets you point the game at an MP3/WAV on your own machine to play as the soundtrack instead of the built-in score (see [Music](#music) below). That file is never uploaded, bundled, or persisted — it's re-selected each session.
+All six fighters use authored procedural pixel-art rigs with cyan, magenta, and yellow outfits, distinct move poses, and character accessories. The three stages and menus share the same bright arcade palette. Art is rendered locally from drawing code. Music remains the original synthesized score, with an optional local music file in Settings.
+
+## Combat clock and move frames
+
+Combat advances at 60 fixed simulation ticks per second (one tick is about 16.67 ms), independent of display refresh rate. Rendering may run at the device's refresh rate; it does not change move frame lengths.
+
+Each round starts at **8:00** (28,800 ticks). The clock continues during impact hit-stop, pauses when gameplay is paused, and stops when the round ends. At 0:00, the fighter with the higher remaining health percentage wins; equal percentages draw and replay the round. Knockouts still end rounds early, and the first player to win two rounds wins the match.
+
+Moves define startup, active hitbox windows, recovery, and total duration in simulation frames. A hit window beginning at frame 4 for 3 frames is active on frames 4, 5, and 6 only. Multiple windows can have different boxes and damage. Hit-stop freezes these move timelines. The pause menu's **Move List** shows frame data; Training settings can show active hitboxes.
+
 
 ## Install and play on desktop
 

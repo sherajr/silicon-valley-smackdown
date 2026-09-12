@@ -1,3 +1,4 @@
+import { drawArcadeBackdrop } from '../render/arcadeTheme';
 import Phaser from 'phaser';
 import { SceneKeys } from './sceneKeys';
 import { GameContext } from '../GameContext';
@@ -47,20 +48,20 @@ export class SettingsScene extends Phaser.Scene {
     this.tabIndex = 0;
     this.rowIndex = 0;
     this.capturing = null;
-    this.cameras.main.setBackgroundColor('#0e0e18');
+    drawArcadeBackdrop(this);
 
-    this.add.text(BASE_WIDTH / 2, 10, 'SETTINGS', { fontFamily: 'monospace', fontSize: '11px', color: '#ffd23f' }).setOrigin(0.5, 0);
+    this.add.text(BASE_WIDTH / 2, 10, 'SETTINGS', { fontFamily: 'monospace', fontSize: '11px', color: '#fff23d' }).setOrigin(0.5, 0);
 
     this.tabTexts = TABS.map((tab, i) =>
       this.add
-        .text(30 + i * 90, 32, TAB_LABELS[tab], { fontFamily: 'monospace', fontSize: '8px', color: '#8a8a99' })
+        .text(30 + i * 90, 32, TAB_LABELS[tab], { fontFamily: 'monospace', fontSize: '8px', color: '#b9b3da' })
         .setOrigin(0, 0.5),
     );
 
-    this.bodyText = this.add.text(30, 55, '', { fontFamily: 'monospace', fontSize: '9px', color: '#d8d8ee', lineSpacing: 6 });
+    this.bodyText = this.add.text(30, 55, '', { fontFamily: 'monospace', fontSize: '9px', color: '#f5f1ff', lineSpacing: 6 });
     this.keyTestText = this.add.text(30, 55, '', { fontFamily: 'monospace', fontSize: '8px', color: '#9fe8d8', wordWrap: { width: BASE_WIDTH - 60 } });
     this.hintText = this.add
-      .text(BASE_WIDTH / 2, BASE_HEIGHT - 12, '', { fontFamily: 'monospace', fontSize: '7px', color: '#7a7f96' })
+      .text(BASE_WIDTH / 2, BASE_HEIGHT - 12, '', { fontFamily: 'monospace', fontSize: '7px', color: '#b9b3da' })
       .setOrigin(0.5, 0.5);
 
     this.refresh();
@@ -80,7 +81,7 @@ export class SettingsScene extends Phaser.Scene {
 
   private refresh(): void {
     const tab = TABS[this.tabIndex];
-    this.tabTexts.forEach((t, i) => t.setColor(i === this.tabIndex ? '#ffd23f' : '#6a6a78'));
+    this.tabTexts.forEach((t, i) => t.setColor(i === this.tabIndex ? '#fff23d' : '#6a6a78'));
     this.bodyText.setVisible(tab !== 'keyTest');
     this.keyTestText.setVisible(tab === 'keyTest');
 

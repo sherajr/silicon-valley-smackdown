@@ -1,3 +1,4 @@
+import { isHitWindowActive } from './moveTiming';
 import {
   ATTACK_BUFFER_FRAMES,
   COMBO_DAMAGE_CAP_RATIO,
@@ -140,6 +141,8 @@ export class CombatSim {
 
     if (this.freezeFrames > 0) {
       this.freezeFrames--;
+      // Impact freezes combat, but the round clock still advances at 60 Hz.
+      this.tickClock(events);
       // Hit-stop freezes movement, move timelines, and damage processing, but a short
       // attack request made during the freeze must still be buffered so it isn't lost;
       // it executes at the fighter's first valid opportunity once frozen state ends.
@@ -602,7 +605,7 @@ export class CombatSim {
     if (move.def.isGrab) {
       if (move.def.hits.length === 0) return;
       const hit = move.def.hits[0];
-      const active = move.frame >= hit.startupFrame && move.frame < hit.startupFrame + hit.activeFrames;
+      const active = isHitWindowActive(hit, move.frame);
       if (!active || move.lastHitFrame.has(0)) return;
       if (!GRABABLE_STATES.includes(other.state) || !isGrounded(other)) return;
       const selfBox = localBoxToWorld(hit.box, self.x, self.y, self.facing);
@@ -612,7 +615,7 @@ export class CombatSim {
     }
 
     move.def.hits.forEach((hit: MoveHitWindow, idx: number) => {
-      const active = move.frame >= hit.startupFrame && move.frame < hit.startupFrame + hit.activeFrames;
+      const active = isHitWindowActive(hit, move.frame);
       if (!active) return;
       const last = move.lastHitFrame.get(idx);
       if (last !== undefined) {

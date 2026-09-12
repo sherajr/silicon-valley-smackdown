@@ -1,3 +1,4 @@
+import { drawArcadeBackdrop } from '../render/arcadeTheme';
 import Phaser from 'phaser';
 import { SceneKeys } from './sceneKeys';
 import { GameContext } from '../GameContext';
@@ -63,10 +64,10 @@ export class CharacterSelectScene extends Phaser.Scene {
     this.p2Confirmed = false;
     this.p1Index = 0;
     this.p2Index = Math.min(1, this.roster.length - 1);
-    this.cameras.main.setBackgroundColor('#101018');
+    drawArcadeBackdrop(this);
 
     const title = this.mode === 'versus' ? 'TWO PLAYERS - CHOOSE YOUR FIGHTERS' : this.mode === 'training' ? 'TRAINING - CHOOSE YOUR FIGHTER' : 'SINGLE PLAYER - CHOOSE YOUR FIGHTER';
-    this.add.text(BASE_WIDTH / 2, 10, title, { fontFamily: 'monospace', fontSize: '10px', color: '#ffd23f' }).setOrigin(0.5, 0);
+    this.add.text(BASE_WIDTH / 2, 10, title, { fontFamily: 'monospace', fontSize: '10px', color: '#fff23d' }).setOrigin(0.5, 0);
 
     this.roster.forEach((id, i) => {
       const col = i % GRID_COLS;
@@ -76,33 +77,33 @@ export class CharacterSelectScene extends Phaser.Scene {
       const def = CHARACTERS[id];
       const locked = id === 'elon' && !GameContext.save.elonUnlocked;
 
-      const rect = this.add.rectangle(x, y, TILE_W - 8, TILE_H - 8, 0x1c1c28).setStrokeStyle(1, 0x33334a);
+      const rect = this.add.rectangle(x, y, TILE_W - 8, TILE_H - 8, 0x321964).setStrokeStyle(1, 0x854ac7);
       this.tileRects.push(rect);
 
       const visuals = buildFighterVisuals(this, def);
       const portrait = parseFrameKey(visuals.portraitFrame);
       const spr = this.add.sprite(x, y - 2, portrait.texture, portrait.frame);
       spr.setOrigin(0.5, 0.85);
-      spr.setScale(0.42);
+      spr.setScale(0.62);
       if (locked) spr.setTint(0x2a2a33);
       this.tileSprites.push(spr);
 
-      this.add.text(x, y + 19, def.name.toUpperCase(), { fontFamily: 'monospace', fontSize: '7px', color: locked ? '#4a4a55' : '#d8d8ee' }).setOrigin(0.5, 0.5);
+      this.add.text(x, y + 19, def.name.toUpperCase(), { fontFamily: 'monospace', fontSize: '7px', color: locked ? '#4a4a55' : '#f5f1ff' }).setOrigin(0.5, 0.5);
 
       const lockText = this.add
         .text(x, y - 4, locked ? 'LOCKED' : '', { fontFamily: 'monospace', fontSize: '7px', color: '#ff6b6b' })
         .setOrigin(0.5, 0.5);
       this.lockTexts.push(lockText);
       if (locked) {
-        this.add.text(x, y + 26, 'Beat Arcade', { fontFamily: 'monospace', fontSize: '6px', color: '#8a8a99' }).setOrigin(0.5, 0.5);
+        this.add.text(x, y + 26, 'Beat Arcade', { fontFamily: 'monospace', fontSize: '6px', color: '#b9b3da' }).setOrigin(0.5, 0.5);
       }
     });
 
-    this.p1Cursor = this.add.rectangle(0, 0, TILE_W - 4, TILE_H - 4).setStrokeStyle(2, 0xffd23f);
+    this.p1Cursor = this.add.rectangle(0, 0, TILE_W - 4, TILE_H - 4).setStrokeStyle(2, 0xfff23d);
     this.p2Cursor = this.add.rectangle(0, 0, TILE_W - 10, TILE_H - 10).setStrokeStyle(2, 0x4fd0ff);
     this.p2Cursor.setVisible(this.mode === 'versus');
 
-    const infoStyle = { fontFamily: 'monospace', fontSize: '8px', color: '#c8c8d8', lineSpacing: 3 } as const;
+    const infoStyle = { fontFamily: 'monospace', fontSize: '8px', color: '#f5f1ff', lineSpacing: 3 } as const;
     if (this.mode === 'versus') {
       this.p1InfoText = this.add.text(6, 195, '', { ...infoStyle, color: '#ffe28a' });
       this.p2InfoText = this.add.text(BASE_WIDTH - 6, 195, '', { ...infoStyle, color: '#a8d8ff', align: 'right' }).setOrigin(1, 0);
@@ -111,7 +112,7 @@ export class CharacterSelectScene extends Phaser.Scene {
       this.p2InfoText = this.add.text(0, 0, '').setVisible(false);
     }
     this.statusText = this.add
-      .text(BASE_WIDTH / 2, BASE_HEIGHT - 10, '', { fontFamily: 'monospace', fontSize: '8px', color: '#8a8a99' })
+      .text(BASE_WIDTH / 2, BASE_HEIGHT - 10, '', { fontFamily: 'monospace', fontSize: '8px', color: '#b9b3da' })
       .setOrigin(0.5, 0.5);
 
     this.refreshCursors();

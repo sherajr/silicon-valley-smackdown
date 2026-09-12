@@ -11,7 +11,7 @@ export const GROUND_Y = 230;
 export const STAGE_LEFT_WALL = 40;
 export const STAGE_RIGHT_WALL = BASE_WIDTH - 40;
 
-export const ROUND_TIME_SECONDS = 90;
+export const ROUND_TIME_SECONDS = 8 * 60;
 export const ROUND_TIME_FRAMES = ROUND_TIME_SECONDS * SIM_FPS;
 export const ROUNDS_TO_WIN = 2;
 

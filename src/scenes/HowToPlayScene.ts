@@ -1,3 +1,4 @@
+import { drawArcadeBackdrop } from '../render/arcadeTheme';
 import Phaser from 'phaser';
 import { SceneKeys } from './sceneKeys';
 import { GameContext } from '../GameContext';
@@ -21,7 +22,7 @@ export class HowToPlayScene extends Phaser.Scene {
   create(): void {
     this.guard.arm(GameContext.input);
     this.page = 0;
-    this.cameras.main.setBackgroundColor('#0e0e18');
+    drawArcadeBackdrop(this);
 
     const p1 = GameContext.save.bindings.p1;
     const p2 = GameContext.save.bindings.p2;
@@ -45,9 +46,10 @@ export class HowToPlayScene extends Phaser.Scene {
       [
         'THE BASICS',
         '',
-        'Each match is best of 3 rounds, 90 seconds each.',
+        'First to two round wins. Each round has an 8:00 clock.',
         'A three-hit Basic chain, a crouching low, a jumping overhead, and a',
         'Forward+Basic heavy all lead into each other with practice.',
+        'At timeout, the higher health percentage wins. Ties replay the round.',
         '',
         'Standing Block stops mid/high/overhead strikes.',
         'Crouch-Block (hold Down + Block) stops mid/low strikes, but loses to overheads.',
@@ -74,13 +76,13 @@ export class HowToPlayScene extends Phaser.Scene {
     ];
 
     this.pageText = this.add
-      .text(30, 20, '', { fontFamily: 'monospace', fontSize: '9px', color: '#d8d8ee', lineSpacing: 5 })
+      .text(30, 20, '', { fontFamily: 'monospace', fontSize: '9px', color: '#f5f1ff', lineSpacing: 5 })
       .setOrigin(0, 0);
     this.pageIndicator = this.add
-      .text(BASE_WIDTH / 2, BASE_HEIGHT - 24, '', { fontFamily: 'monospace', fontSize: '8px', color: '#8a8a99' })
+      .text(BASE_WIDTH / 2, BASE_HEIGHT - 24, '', { fontFamily: 'monospace', fontSize: '8px', color: '#b9b3da' })
       .setOrigin(0.5, 0.5);
     this.add
-      .text(BASE_WIDTH / 2, BASE_HEIGHT - 10, 'Left/Right to page, Block to return', { fontFamily: 'monospace', fontSize: '7px', color: '#7a7f96' })
+      .text(BASE_WIDTH / 2, BASE_HEIGHT - 10, 'Left/Right to page, Block to return', { fontFamily: 'monospace', fontSize: '7px', color: '#b9b3da' })
       .setOrigin(0.5, 0.5);
 
     this.refresh();
