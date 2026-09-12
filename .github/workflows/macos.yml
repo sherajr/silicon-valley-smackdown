@@ -28,7 +28,7 @@ jobs:
       - name: Locate the built .app bundles by actual architecture
         run: |
           set -euo pipefail
-          for bundle in $(find release -maxdepth 3 -name "*.app" -type d); do
+          while IFS= read -r -d '' bundle; do
             exe="$bundle/Contents/MacOS/Silicon Valley Smackdown"
             arch=$(lipo -archs "$exe")
             echo "found $bundle ($arch)"
@@ -37,7 +37,7 @@ jobs:
             elif [ "$arch" = "x86_64" ]; then
               echo "SVS_APP_X64=$exe" >> "$GITHUB_ENV"
             fi
-          done
+          done < <(find release -maxdepth 3 -name "*.app" -type d -print0)
           test -n "${SVS_APP_ARM64:-}" || { echo "arm64 app bundle not found"; exit 1; }
           test -n "${SVS_APP_X64:-}" || { echo "x64 app bundle not found"; exit 1; }
       - name: Test the arm64 build (native on this runner)
