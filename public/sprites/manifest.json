@@ -1,0 +1,44 @@
+{
+  "cell": {
+    "w": 96,
+    "h": 120
+  },
+  "fighters": {
+    "hunter": {
+      "idle": "/sprites/fighters/hunter/idle.png",
+      "walk": "/sprites/fighters/hunter/walk.png",
+      "attack": "/sprites/fighters/hunter/attack.png",
+      "poses": "/sprites/fighters/hunter/poses.png"
+    },
+    "kevin": {
+      "idle": "/sprites/fighters/kevin/idle.png",
+      "walk": "/sprites/fighters/kevin/walk.png",
+      "attack": "/sprites/fighters/kevin/attack.png",
+      "poses": "/sprites/fighters/kevin/poses.png"
+    },
+    "al": {
+      "idle": "/sprites/fighters/al/idle.png",
+      "walk": "/sprites/fighters/al/walk.png",
+      "attack": "/sprites/fighters/al/attack.png",
+      "poses": "/sprites/fighters/al/poses.png"
+    },
+    "priya": {
+      "idle": "/sprites/fighters/priya/idle.png",
+      "walk": "/sprites/fighters/priya/walk.png",
+      "attack": "/sprites/fighters/priya/attack.png",
+      "poses": "/sprites/fighters/priya/poses.png"
+    },
+    "chad": {
+      "idle": "/sprites/fighters/chad/idle.png",
+      "walk": "/sprites/fighters/chad/walk.png",
+      "attack": "/sprites/fighters/chad/attack.png",
+      "poses": "/sprites/fighters/chad/poses.png"
+    },
+    "elon": {
+      "idle": "/sprites/fighters/elon/idle.png",
+      "walk": "/sprites/fighters/elon/walk.png",
+      "attack": "/sprites/fighters/elon/attack.png",
+      "poses": "/sprites/fighters/elon/poses.png"
+    }
+  }
+}

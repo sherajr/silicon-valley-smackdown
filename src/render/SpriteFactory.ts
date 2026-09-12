@@ -1,16 +1,20 @@
 import Phaser from 'phaser';
-import { renderPose, RIG_CANVAS_W, RIG_CANVAS_H, RIG_ANCHOR_X, RIG_ANCHOR_Y, type Pose } from './FighterRig';
-import { framesForCharacter } from './characterRigs';
-import { detailPainterFor } from './characterDetails';
-import type { CharacterDef, MoveKind } from '../sim/types';
+import { ALL_FIGHTER_IDS, ALL_STAGE_IDS, type CharacterDef, type FighterId, type MoveKind } from '../sim/types';
 
-export const RIG_ORIGIN_X = RIG_ANCHOR_X / RIG_CANVAS_W;
-export const RIG_ORIGIN_Y = RIG_ANCHOR_Y / RIG_CANVAS_H;
+export const SPRITE_CELL_W = 96;
+export const SPRITE_CELL_H = 120;
+/** Feet sit near the bottom of each cell so GROUND_Y placement matches the sim. */
+export const RIG_ORIGIN_X = 0.5;
+export const RIG_ORIGIN_Y = 0.96;
 
 export interface FighterVisualSet {
   idleAnim: string;
   walkAnim: string;
   victoryAnim: string;
+  idleSheet: string;
+  walkSheet: string;
+  attackSheet: string;
+  poseSheet: string;
   jumpFrames: string[];
   crouchFrames: string[];
   blockFrames: string[];
@@ -22,67 +26,115 @@ export interface FighterVisualSet {
   portraitFrame: string;
 }
 
-const registeredTextures = new Set<string>();
+const MOVE_KINDS: MoveKind[] = [
+  'basic1',
+  'basic2',
+  'basic3',
+  'crouchBasic',
+  'jumpBasic',
+  'forwardBasic',
+  'special',
+  'downSpecial',
+  'grab',
+  'super',
+];
+
 const builtCharacters = new Set<string>();
 const cache = new Map<string, FighterVisualSet>();
 
-function registerTexture(scene: Phaser.Scene, key: string, pose: Pose, def: CharacterDef): string {
-  if (!registeredTextures.has(key)) {
-    const canvas = renderPose(pose, def.visual, detailPainterFor(def.id));
-    scene.textures.addCanvas(key, canvas);
-    registeredTextures.add(key);
-  }
-  return key;
+function sheetKey(id: FighterId, action: string): string {
+  return `${id}_${action}_sheet`;
 }
 
-function registerAnim(scene: Phaser.Scene, key: string, textureKeys: string[], frameRate: number, repeat: number): string {
+function frameKey(sheet: string, frame: number): string {
+  return `${sheet}#${frame}`;
+}
+
+export function preloadGameArt(scene: Phaser.Scene): void {
+  const base = import.meta.env.BASE_URL;
+  for (const id of ALL_FIGHTER_IDS) {
+    for (const action of ['idle', 'walk', 'attack', 'poses'] as const) {
+      scene.load.spritesheet(sheetKey(id, action), `${base}sprites/fighters/${id}/${action}.png`, {
+        frameWidth: SPRITE_CELL_W,
+        frameHeight: SPRITE_CELL_H,
+      });
+    }
+  }
+  for (const stage of ALL_STAGE_IDS) {
+    scene.load.image(`stage_${stage}`, `${base}sprites/stages/${stage}.png`);
+  }
+  scene.load.spritesheet('fx_projectiles', `${base}sprites/fx/projectiles.png`, { frameWidth: 48, frameHeight: 48 });
+  scene.load.spritesheet('fx_impact', `${base}sprites/fx/impact.png`, { frameWidth: 48, frameHeight: 48 });
+}
+
+function ensureAnim(scene: Phaser.Scene, key: string, sheet: string, frameRate: number, repeat: number): string {
   if (!scene.anims.exists(key)) {
-    scene.anims.create({ key, frames: textureKeys.map((k) => ({ key: k })), frameRate, repeat });
+    scene.anims.create({
+      key,
+      frames: scene.anims.generateFrameNumbers(sheet, { start: 0, end: 3 }),
+      frameRate,
+      repeat,
+    });
   }
   return key;
 }
 
-/** Generates every texture/animation for a character exactly once per Game instance, cached across scenes. */
+/** Registers pixel-art textures/animations for a character once per Game instance. */
 export function buildFighterVisuals(scene: Phaser.Scene, def: CharacterDef): FighterVisualSet {
   const cacheKey = def.id;
   if (builtCharacters.has(cacheKey)) return cache.get(cacheKey)!;
 
-  const set = framesForCharacter(def);
-  const prefix = def.id;
-  const reg = (name: string, poses: Pose[]): string[] => poses.map((p, i) => registerTexture(scene, `${prefix}_${name}_${i}`, p, def));
+  const idleSheet = sheetKey(def.id, 'idle');
+  const walkSheet = sheetKey(def.id, 'walk');
+  const attackSheet = sheetKey(def.id, 'attack');
+  const poseSheet = sheetKey(def.id, 'poses');
 
-  const idleKeys = reg('idle', set.idle);
-  const walkKeys = reg('walk', set.walk);
-  const victoryKeys = reg('victory', set.victory);
-  const portraitKeys = reg('portrait', set.portrait);
+  const jump = frameKey(poseSheet, 0);
+  const crouch = frameKey(poseSheet, 1);
+  const block = frameKey(poseSheet, 2);
+  const hurt = frameKey(poseSheet, 3);
+  const attackFrames = [0, 1, 2, 3].map((i) => frameKey(attackSheet, i));
+
+  const moveFrames = {} as Record<MoveKind, string[]>;
+  for (const kind of MOVE_KINDS) {
+    if (kind === 'crouchBasic') moveFrames[kind] = [crouch, attackFrames[1], crouch];
+    else if (kind === 'jumpBasic') moveFrames[kind] = [jump, attackFrames[1], jump];
+    else if (kind === 'grab') moveFrames[kind] = [attackFrames[0], attackFrames[2], attackFrames[3]];
+    else if (kind === 'super') moveFrames[kind] = [attackFrames[0], attackFrames[1], attackFrames[2], attackFrames[3]];
+    else moveFrames[kind] = attackFrames;
+  }
 
   const visuals: FighterVisualSet = {
-    idleAnim: registerAnim(scene, `${prefix}_idle`, idleKeys, 5, -1),
-    walkAnim: registerAnim(scene, `${prefix}_walk`, walkKeys, 11, -1),
-    victoryAnim: registerAnim(scene, `${prefix}_victory`, victoryKeys, 3, -1),
-    jumpFrames: reg('jump', set.jump),
-    crouchFrames: reg('crouch', set.crouch),
-    blockFrames: reg('block', set.block),
-    hitstunFrames: reg('hitstun', set.hitstun),
-    knockdownFrames: reg('knockdown', set.knockdown),
-    wakeupFrames: reg('wakeup', set.wakeup),
-    koFrames: reg('ko', set.ko),
-    moveFrames: {} as Record<MoveKind, string[]>,
-    portraitFrame: portraitKeys[0],
+    idleAnim: ensureAnim(scene, `${def.id}_idle`, idleSheet, 5, -1),
+    walkAnim: ensureAnim(scene, `${def.id}_walk`, walkSheet, 11, -1),
+    victoryAnim: ensureAnim(scene, `${def.id}_victory`, idleSheet, 3, -1),
+    idleSheet,
+    walkSheet,
+    attackSheet,
+    poseSheet,
+    jumpFrames: [jump],
+    crouchFrames: [crouch],
+    blockFrames: [block],
+    hitstunFrames: [hurt],
+    knockdownFrames: [hurt],
+    wakeupFrames: [crouch],
+    koFrames: [hurt],
+    moveFrames,
+    portraitFrame: frameKey(idleSheet, 0),
   };
-
-  for (const kind of Object.keys(set.moves) as MoveKind[]) {
-    visuals.moveFrames[kind] = reg(`move_${kind}`, set.moves[kind]);
-  }
 
   builtCharacters.add(cacheKey);
   cache.set(cacheKey, visuals);
   return visuals;
 }
 
-/** Test/dev helper to reset the module-level texture cache (Phaser texture manager is per-Game, not per-test). */
+export function parseFrameKey(token: string): { texture: string; frame: number } {
+  const hash = token.lastIndexOf('#');
+  if (hash === -1) return { texture: token, frame: 0 };
+  return { texture: token.slice(0, hash), frame: Number(token.slice(hash + 1)) || 0 };
+}
+
 export function resetVisualCache(): void {
-  registeredTextures.clear();
   builtCharacters.clear();
   cache.clear();
 }

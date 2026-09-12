@@ -22,7 +22,7 @@ import { hurtboxFor } from '../sim/FighterRuntime';
 const ARENA_OFFSET_X = 0;
 const MAX_STEPS_PER_FRAME = 6;
 /** Fighters render a bit larger than their collision box for on-screen presence and readability. */
-const GAMEPLAY_SPRITE_SCALE = 1.25;
+const GAMEPLAY_SPRITE_SCALE = 0.72;
 
 type Phase = 'playing' | 'paused' | 'roundEndPause' | 'matchEndPause';
 
