@@ -63,6 +63,39 @@ export async function getSimSnapshot(page: Page) {
   });
 }
 
+/** Reads the currently displayed texture key for a fighter's live Phaser sprite -- the actual
+ * rendered frame, not sim state -- so a test can prove which pose is on screen right now
+ * (a guard-meter/health assertion alone cannot catch a reaction-routing/rendering bug). */
+export async function getFighterTextureKey(page: Page, slot: 'p1' | 'p2'): Promise<string | null> {
+  return page.evaluate((s) => {
+    const w = window as unknown as { __e2eGame?: { scene: { getScenes: (active: boolean) => { scene: { key: string } }[] } } };
+    const scenes = w.__e2eGame?.scene.getScenes(true) ?? [];
+    const fight = scenes.find((sc) => sc.scene.key === 'Fight') as unknown as
+      | { p1View?: { sprite: { texture: { key: string } } }; p2View?: { sprite: { texture: { key: string } } } }
+      | undefined;
+    const view = s === 'p1' ? fight?.p1View : fight?.p2View;
+    return view?.sprite.texture.key ?? null;
+  }, slot);
+}
+
+/** Polls getFighterTextureKey() until it matches `predicate` or the timeout elapses. */
+export async function waitForFighterTextureKey(
+  page: Page,
+  slot: 'p1' | 'p2',
+  predicate: (key: string) => boolean,
+  timeoutMs = 1500,
+  intervalMs = 15,
+): Promise<string | null> {
+  const start = Date.now();
+  let key = await getFighterTextureKey(page, slot);
+  while (Date.now() - start < timeoutMs) {
+    if (key && predicate(key)) return key;
+    await new Promise((r) => setTimeout(r, intervalMs));
+    key = await getFighterTextureKey(page, slot);
+  }
+  return key;
+}
+
 /** Navigates Title -> Main Menu -> Two Players -> Character Select (P1 Hunter, P2 Kevin) -> Stage -> Fight, using only real input, identical to a human clicking through Versus. */
 export async function startVersusMatch(page: Page): Promise<void> {
   await tap(page, 'KeyV'); // Title -> Main Menu

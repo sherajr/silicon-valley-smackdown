@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { collectErrors, getSimSnapshot, gotoGame, startVersusMatch, waitForSim } from './helpers';
+import { collectErrors, getSimSnapshot, gotoGame, startVersusMatch, waitForFighterTextureKey, waitForSim } from './helpers';
 
 /**
  * The earlier review found that browser combat coverage only proved an attack
@@ -76,6 +76,15 @@ test.describe('real combat contact (P1 Hunter vs P2 Kevin)', () => {
     await page.keyboard.down('KeyV'); // P1 Basic into the block
     await page.waitForTimeout(50);
     await page.keyboard.up('KeyV');
+
+    // Regression coverage for the reaction-routing bug the Codex review found: a successful
+    // block used to render the ordinary hitstun pose (the block-impact frame was never wired
+    // to a real block event), which a health/guard-only assertion cannot catch. Poll for the
+    // actual on-screen texture -- Kevin standing guard's real impact frame -- during the brief
+    // real 'blockstun' window rather than asserting a fixed frame index off simulation state.
+    const impactKey = await waitForFighterTextureKey(page, 'p2', (k) => k === 'kevin_block_1', 800);
+    expect(impactKey).toBe('kevin_block_1');
+
     await page.waitForTimeout(500);
     await page.keyboard.up('Numpad6');
 

@@ -1,0 +1,221 @@
+[
+  {
+    "file": "01-title.png",
+    "note": "Title screen, just loaded.",
+    "scene": "Title",
+    "sim": null
+  },
+  {
+    "file": "02-main-menu.png",
+    "note": "Main menu.",
+    "scene": "MainMenu",
+    "sim": null
+  },
+  {
+    "file": "03-character-select.png",
+    "note": "Character select, both P1/P2 info panels legible (post z-order fix).",
+    "scene": "CharacterSelect",
+    "sim": null
+  },
+  {
+    "file": "04-stage-select.png",
+    "note": "Stage select.",
+    "scene": "StageSelect",
+    "sim": null
+  },
+  {
+    "file": "05-versus-intro.png",
+    "note": "Versus intro card.",
+    "scene": "VersusIntro",
+    "sim": null
+  },
+  {
+    "file": "06-fight-neutral-idle.png",
+    "note": "Neutral idle, both fighters standing.",
+    "scene": "Fight",
+    "sim": {
+      "ended": false,
+      "result": null,
+      "p1Health": 200,
+      "p2Health": 210,
+      "p1Guard": 100,
+      "p2Guard": 100,
+      "p1State": "intro",
+      "p2State": "intro",
+      "scoreP1": 0,
+      "scoreP2": 0,
+      "matchWinner": null
+    }
+  },
+  {
+    "file": "07-dash.png",
+    "note": "P1 dash NOT confirmed by sim state before this shot -- may not show the dash pose.",
+    "scene": "Fight",
+    "sim": {
+      "ended": false,
+      "result": null,
+      "p1Health": 200,
+      "p2Health": 210,
+      "p1Guard": 100,
+      "p2Guard": 100,
+      "p1State": "walk",
+      "p2State": "idle",
+      "scoreP1": 0,
+      "scoreP2": 0,
+      "matchWinner": null
+    }
+  },
+  {
+    "file": "08-jump.png",
+    "note": "P1 confirmed airborne (jump state).",
+    "scene": "Fight",
+    "sim": {
+      "ended": false,
+      "result": null,
+      "p1Health": 200,
+      "p2Health": 210,
+      "p1Guard": 100,
+      "p2Guard": 100,
+      "p1State": "jump",
+      "p2State": "idle",
+      "scoreP1": 0,
+      "scoreP2": 0,
+      "matchWinner": null
+    }
+  },
+  {
+    "file": "09-projectile.png",
+    "note": "Shortly after P1 Special; projectile should be visible in flight.",
+    "scene": "Fight",
+    "sim": {
+      "ended": false,
+      "result": null,
+      "p1Health": 200,
+      "p2Health": 210,
+      "p1Guard": 100,
+      "p2Guard": 100,
+      "p1State": "attack",
+      "p2State": "idle",
+      "scoreP1": 0,
+      "scoreP2": 0,
+      "matchWinner": null
+    }
+  },
+  {
+    "file": "10-attack-contact.png",
+    "note": "Confirmed contact: P2 health 199 -> 193.",
+    "scene": "Fight",
+    "sim": {
+      "ended": false,
+      "result": null,
+      "p1Health": 200,
+      "p2Health": 193,
+      "p1Guard": 100,
+      "p2Guard": 100,
+      "p1State": "attack",
+      "p2State": "hitstun",
+      "scoreP1": 0,
+      "scoreP2": 0,
+      "matchWinner": null
+    }
+  },
+  {
+    "file": "11-block-impact.png",
+    "note": "Confirmed: P2 sprite texture is the real guard-impact frame (kevin_block_1).",
+    "scene": "Fight",
+    "sim": {
+      "ended": false,
+      "result": null,
+      "p1Health": 200,
+      "p2Health": 192.28,
+      "p1Guard": 100,
+      "p2Guard": 92,
+      "p1State": "attack",
+      "p2State": "blockstun",
+      "scoreP1": 0,
+      "scoreP2": 0,
+      "matchWinner": null
+    }
+  },
+  {
+    "file": "12-knockdown.png",
+    "note": "Confirmed: P2 sim state is knockdown.",
+    "scene": "Fight",
+    "sim": {
+      "ended": false,
+      "result": null,
+      "p1Health": 200,
+      "p2Health": 172.28,
+      "p1Guard": 100,
+      "p2Guard": 100,
+      "p1State": "attack",
+      "p2State": "knockdown",
+      "scoreP1": 0,
+      "scoreP2": 0,
+      "matchWinner": null
+    }
+  },
+  {
+    "file": "13-wakeup.png",
+    "note": "Confirmed: P2 sim state is wakeup.",
+    "scene": "Fight",
+    "sim": {
+      "ended": false,
+      "result": null,
+      "p1Health": 200,
+      "p2Health": 172.28,
+      "p1Guard": 100,
+      "p2Guard": 100,
+      "p1State": "idle",
+      "p2State": "wakeup",
+      "scoreP1": 0,
+      "scoreP2": 0,
+      "matchWinner": null
+    }
+  },
+  {
+    "file": "14-pickup.png",
+    "note": "Walked to the spawned pickup; sim.pickup became null (collected) or this is a best-effort shot at the timeout.",
+    "scene": "Fight",
+    "sim": {
+      "ended": false,
+      "result": null,
+      "p1Health": 200,
+      "p2Health": 172.28,
+      "p1Guard": 100,
+      "p2Guard": 100,
+      "p1State": "idle",
+      "p2State": "idle",
+      "scoreP1": 0,
+      "scoreP2": 0,
+      "matchWinner": null
+    }
+  },
+  {
+    "file": "15-round1-ko.png",
+    "note": "Round 1 K.O. banner (forced via the same test-only health-zero hook match-rematch.spec.ts uses for round-flow testing -- not an earned finish).",
+    "scene": "Fight",
+    "sim": {
+      "ended": true,
+      "result": {
+        "winner": "p1",
+        "reason": "ko"
+      },
+      "p1Health": 200,
+      "p2Health": 0,
+      "p1Guard": 100,
+      "p2Guard": 100,
+      "p1State": "victory",
+      "p2State": "ko",
+      "scoreP1": 1,
+      "scoreP2": 0,
+      "matchWinner": null
+    }
+  },
+  {
+    "file": "16-results.png",
+    "note": "Confirmed: active scene is Results (match actually ended, 2 round wins).",
+    "scene": "Results",
+    "sim": null
+  }
+]

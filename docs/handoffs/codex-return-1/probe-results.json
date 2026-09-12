@@ -1,0 +1,186 @@
+{
+  "scope": "Actual current CombatSim and FighterView methods; Phaser drawing is mocked. No browser-input, live-play, or audible QA claimed.",
+  "standingBlock": {
+    "event": {
+      "type": "blocked",
+      "attacker": "p1",
+      "defender": "p2",
+      "damage": 0.72,
+      "hitstop": 3,
+      "guardBreak": false
+    },
+    "state": "blockstun",
+    "selectedFrame": "hitstun0",
+    "blockImpactTimer": 0
+  },
+  "crouchBlock": {
+    "event": {
+      "type": "blocked",
+      "attacker": "p1",
+      "defender": "p2",
+      "damage": 0.72,
+      "hitstop": 3,
+      "guardBreak": false
+    },
+    "state": "blockstun",
+    "selectedFrame": "hitstun0",
+    "blockImpactTimer": 0
+  },
+  "freezeClock": {
+    "before": {
+      "simFrame": 0,
+      "stateTimer": 20,
+      "selected": "hitstun0"
+    },
+    "after": {
+      "simFrame": 0,
+      "stateTimer": 20,
+      "selected": "hitstun1",
+      "elapsedMs": 150
+    }
+  },
+  "repeatHit": {
+    "state": "hitstun",
+    "selected": "hitstun1",
+    "elapsedMs": 196.66666666666666
+  },
+  "baselineString": {
+    "healthLost": 14,
+    "events": [
+      {
+        "wallFrame": 0,
+        "simFrame": 1,
+        "distance": 39,
+        "type": "moveStarted",
+        "who": "p1",
+        "moveId": "hunter_basic1",
+        "kind": "basic1",
+        "isSuper": false
+      },
+      {
+        "wallFrame": 4,
+        "simFrame": 5,
+        "distance": 39,
+        "type": "hit",
+        "attacker": "p1",
+        "defender": "p2",
+        "damage": 6,
+        "comboHits": 1,
+        "guardBreak": false,
+        "hitstop": 3,
+        "knockdown": false
+      },
+      {
+        "wallFrame": 16,
+        "simFrame": 14,
+        "distance": 55.802,
+        "type": "moveStarted",
+        "who": "p1",
+        "moveId": "hunter_basic2",
+        "kind": "basic2",
+        "isSuper": false
+      },
+      {
+        "wallFrame": 21,
+        "simFrame": 19,
+        "distance": 57.756,
+        "type": "hit",
+        "attacker": "p1",
+        "defender": "p2",
+        "damage": 8,
+        "comboHits": 2,
+        "guardBreak": false,
+        "hitstop": 3,
+        "knockdown": false
+      },
+      {
+        "wallFrame": 35,
+        "simFrame": 30,
+        "distance": 77.962,
+        "type": "moveStarted",
+        "who": "p1",
+        "moveId": "hunter_basic3",
+        "kind": "basic3",
+        "isSuper": false
+      }
+    ]
+  },
+  "candidateString": {
+    "healthLost": 24.19999999999999,
+    "events": [
+      {
+        "wallFrame": 0,
+        "simFrame": 1,
+        "distance": 39,
+        "type": "moveStarted",
+        "who": "p1",
+        "moveId": "hunter_basic1",
+        "kind": "basic1",
+        "isSuper": false
+      },
+      {
+        "wallFrame": 4,
+        "simFrame": 5,
+        "distance": 39,
+        "type": "hit",
+        "attacker": "p1",
+        "defender": "p2",
+        "damage": 6,
+        "comboHits": 1,
+        "guardBreak": false,
+        "hitstop": 3,
+        "knockdown": false
+      },
+      {
+        "wallFrame": 16,
+        "simFrame": 14,
+        "distance": 46.684,
+        "type": "moveStarted",
+        "who": "p1",
+        "moveId": "hunter_basic2",
+        "kind": "basic2",
+        "isSuper": false
+      },
+      {
+        "wallFrame": 21,
+        "simFrame": 19,
+        "distance": 47.578,
+        "type": "hit",
+        "attacker": "p1",
+        "defender": "p2",
+        "damage": 8,
+        "comboHits": 2,
+        "guardBreak": false,
+        "hitstop": 3,
+        "knockdown": false
+      },
+      {
+        "wallFrame": 35,
+        "simFrame": 30,
+        "distance": 57.569,
+        "type": "moveStarted",
+        "who": "p1",
+        "moveId": "hunter_basic3",
+        "kind": "basic3",
+        "isSuper": false
+      },
+      {
+        "wallFrame": 41,
+        "simFrame": 36,
+        "distance": 58.127,
+        "type": "hit",
+        "attacker": "p1",
+        "defender": "p2",
+        "damage": 10.2,
+        "comboHits": 3,
+        "guardBreak": false,
+        "hitstop": 4,
+        "knockdown": false
+      }
+    ]
+  },
+  "nominalHitFlashMs": {
+    "hz60": 66.66666666666667,
+    "hz144": 27.77777777777778
+  }
+}

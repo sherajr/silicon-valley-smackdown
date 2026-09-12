@@ -8,7 +8,7 @@ import type { FighterRuntime } from '../sim/FighterRuntime';
 import type { SimEvent } from '../sim/events';
 import { CHARACTERS, ELON_BOSS } from '../data/characters';
 import { STAGES } from '../data/stages';
-import { FighterView } from '../render/FighterView';
+import { FighterView, type FighterImpact } from '../render/FighterView';
 import { StageView } from '../render/StageView';
 import { HUD } from '../render/HUD';
 import { EffectsView } from '../render/EffectsView';
@@ -217,8 +217,7 @@ export class FightScene extends Phaser.Scene {
           const pos = this.effects.hurtboxCenter(defender);
           this.effects.spawnSpark(pos.x, pos.y, 0xffe36e, e.damage > 14);
           GameContext.audio.playSfx(e.damage > 14 ? 'hitHeavy' : 'hitLight');
-          if (e.defender === 'p1') this.p1FlashThisFrame = true;
-          else this.p2FlashThisFrame = true;
+          this.impactFor(e.defender).hit = true;
           if (e.comboHits >= 4) this.hud.showCallout('DISRUPTED!');
           break;
         }
@@ -228,6 +227,13 @@ export class FightScene extends Phaser.Scene {
           this.effects.spawnSpark(pos.x, pos.y, 0x8fbfe0, false);
           GameContext.audio.playSfx(e.guardBreak ? 'guardBreak' : 'blocked');
           if (e.guardBreak) this.hud.showCallout('GUARD BREAK!');
+          // Guard break is a broken defense/recoil (FighterView renders it alongside hitstun),
+          // not another instance of a successful guard, so it doesn't get the block-impact pose.
+          else {
+            const impact = this.impactFor(e.defender);
+            impact.blocked = true;
+            impact.blockedCrouching = e.crouching;
+          }
           break;
         }
         case 'grabConnect': {
@@ -269,15 +275,19 @@ export class FightScene extends Phaser.Scene {
     }
   }
 
-  private p1FlashThisFrame = false;
-  private p2FlashThisFrame = false;
+  private p1Impact: FighterImpact = { hit: false, blocked: false, blockedCrouching: false };
+  private p2Impact: FighterImpact = { hit: false, blocked: false, blockedCrouching: false };
+
+  private impactFor(slot: 'p1' | 'p2'): FighterImpact {
+    return slot === 'p1' ? this.p1Impact : this.p2Impact;
+  }
 
   private renderFrame(delta: number): void {
     const sim = this.matchState.sim;
-    this.p1View.update(sim.p1, ARENA_OFFSET_X, this.p1FlashThisFrame, delta);
-    this.p2View.update(sim.p2, ARENA_OFFSET_X, this.p2FlashThisFrame, delta);
-    this.p1FlashThisFrame = false;
-    this.p2FlashThisFrame = false;
+    this.p1View.update(sim.p1, ARENA_OFFSET_X, this.p1Impact, delta, sim.frameCount);
+    this.p2View.update(sim.p2, ARENA_OFFSET_X, this.p2Impact, delta, sim.frameCount);
+    this.p1Impact = { hit: false, blocked: false, blockedCrouching: false };
+    this.p2Impact = { hit: false, blocked: false, blockedCrouching: false };
     this.effects.updateProjectiles(sim.projectiles);
     this.effects.updatePickup(sim.pickup);
     this.effects.tick(delta);

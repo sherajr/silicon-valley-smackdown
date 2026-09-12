@@ -28,10 +28,15 @@ export const HUNTER: CharacterDef = {
   },
   moves: {
     basic1: move('hunter_basic1', 'Disruptive Innovation I', 'Basic', 'basic1', 'mid', 4, 5, {
-      hits: [window(4, 3, box(18, -44, 24, 16), effect(6, 'mid'))],
+      // Lighter knockback than the damage-scaled default (3.28) -- Codex's evidence-based review
+      // found the default pushed the target out of basic3's reach after two jabs (2 of 3 hits
+      // connecting, not 3), undermining the brief's 3-5 hit combo string. Verified via
+      // src/data/characters/hunter.combo.test.ts against both an idle and an actively-blocking
+      // defender, both facings.
+      hits: [window(4, 3, box(18, -44, 24, 16), effect(6, 'mid', { knockback: { x: 1.5, y: 0 } }))],
     }),
     basic2: move('hunter_basic2', 'Disruptive Innovation II', 'Basic x2', 'basic2', 'mid', 5, 7, {
-      hits: [window(5, 3, box(18, -42, 26, 16), effect(8, 'mid'))],
+      hits: [window(5, 3, box(18, -42, 26, 16), effect(8, 'mid', { knockback: { x: 1.8, y: 0 } }))],
     }),
     basic3: move('hunter_basic3', 'Disruptive Innovation III', 'Basic x3', 'basic3', 'high', 6, 10, {
       hits: [window(6, 4, box(20, -50, 26, 18), effect(12, 'high', { knockback: { x: 6, y: 0 } }))],
