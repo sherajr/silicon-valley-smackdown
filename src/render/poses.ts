@@ -152,6 +152,61 @@ export function jumpPose(b: Build): Pose {
   return p;
 }
 
+/** Launching upward: legs still tucking up under the body, arms driving up. */
+export function jumpRisePose(b: Build): Pose {
+  const p = basePose(b);
+  p.legBack.y += 9;
+  p.legBack.h -= 9;
+  p.legFront.y += 11;
+  p.legFront.h -= 11;
+  p.armBack.y -= 7;
+  p.armFront.y -= 7;
+  p.bodyTilt = -2;
+  return p;
+}
+
+/** Coming back down: legs extending to meet the ground, slight forward lean. */
+export function jumpFallPose(b: Build): Pose {
+  const p = basePose(b);
+  p.legBack.y += 3;
+  p.legBack.h -= 3;
+  p.legFront.y += 1;
+  p.legFront.h -= 1;
+  p.legFront.x += 3;
+  p.armBack.y -= 2;
+  p.armFront.y -= 2;
+  p.bodyTilt = 3;
+  return p;
+}
+
+/** Three-frame air sequence selected by the sim's actual vy sign (rise/apex/fall), not a timer. */
+export function jumpFrames(b: Build): Pose[] {
+  return [jumpRisePose(b), jumpPose(b), jumpFallPose(b)];
+}
+
+/** Low, forward-leaning sprint burst -- deliberately distinct from idle's upright bob and walk's stride, so dash reads as its own move rather than reusing idle. */
+export function dashFrames(b: Build): Pose[] {
+  const lean = b.legLen * 0.12;
+  const spreads = [12, 3, -7];
+  return spreads.map((spread) => {
+    const p = basePose(b);
+    Object.assign(p, baseLegs(b, spread));
+    p.torso.y += lean;
+    p.torso.x += 2;
+    p.torso.h -= lean * 0.15;
+    p.head.y += lean;
+    p.head.x += 3;
+    p.hair.y += lean;
+    p.hair.x += 3;
+    p.armBack.x -= 3;
+    p.armBack.y += lean * 0.5;
+    p.armFront.x += 3;
+    p.armFront.y += lean * 0.5;
+    p.bodyTilt = 7;
+    return p;
+  });
+}
+
 export function crouchPose(b: Build): Pose {
   const p = basePose(b);
   const crouchDrop = b.legLen * 0.4;
@@ -179,6 +234,33 @@ export function blockPose(b: Build): Pose {
   return p;
 }
 
+/** Brief flinch shown for the instant a blocked hit actually lands, so a block doesn't look identical whether or not it's absorbing an attack right now. */
+export function blockImpactPose(b: Build): Pose {
+  const p = blockPose(b);
+  p.armFront.x -= b.armW * 0.35;
+  p.torso.x -= 2;
+  p.bodyTilt = -5;
+  return p;
+}
+
+/** Two-frame block sequence: held stance, then the impact flinch (selected by a recent-hit flag, not a timer). */
+export function blockFrames(b: Build): Pose[] {
+  return [blockPose(b), blockImpactPose(b)];
+}
+
+/** Low-block equivalent of blockImpactPose, for a hit absorbed while crouch-blocking. */
+export function crouchBlockImpactPose(b: Build): Pose {
+  const p = crouchPose(b);
+  p.armFront.x -= b.armW * 0.35;
+  p.torso.x -= 2;
+  p.bodyTilt = -4;
+  return p;
+}
+
+export function crouchFrames(b: Build): Pose[] {
+  return [crouchPose(b), crouchBlockImpactPose(b)];
+}
+
 export function hitstunPose(b: Build): Pose {
   const p = basePose(b);
   p.bodyTilt = -6;
@@ -187,6 +269,21 @@ export function hitstunPose(b: Build): Pose {
   p.head.x -= 3;
   p.eyesClosed = true;
   return p;
+}
+
+/** Settled daze held for the remainder of hitstun, after the initial snap-back. */
+export function hitstunHoldPose(b: Build): Pose {
+  const p = basePose(b);
+  p.bodyTilt = -3;
+  p.armBack.x -= 1;
+  p.head.x -= 1;
+  p.eyesClosed = true;
+  return p;
+}
+
+/** Two-frame reaction: the sharp initial snap on contact, then a held daze while stun continues. */
+export function hitstunFrames(b: Build): Pose[] {
+  return [hitstunPose(b), hitstunHoldPose(b)];
 }
 
 export function knockdownPose(b: Build): Pose {
@@ -214,6 +311,45 @@ export function wakeupPose(b: Build): Pose {
   const p = crouchPose(b);
   p.bodyTilt = 2;
   return p;
+}
+
+/** Early wakeup: propping up off the ground, before rising to the crouch stance. */
+export function wakeupStirPose(b: Build): Pose {
+  const p = knockdownPose(b);
+  p.armFront.y -= b.legLen * 0.3;
+  p.armFront.h *= 1.3;
+  p.bodyTilt = -2;
+  p.eyesClosed = false;
+  return p;
+}
+
+/** Two-frame getting-up sequence: stirring, then rising into the crouch stance. */
+export function wakeupFrames(b: Build): Pose[] {
+  return [wakeupStirPose(b), wakeupPose(b)];
+}
+
+/** Mid-fall, just after being knocked down -- before settling flat. */
+export function knockdownFallPose(b: Build): Pose {
+  const p = basePose(b);
+  const drop = b.legLen * 0.5;
+  p.legBack.y += drop;
+  p.legBack.h = Math.max(2, p.legBack.h - drop);
+  p.legFront.y += drop * 0.7;
+  p.legFront.h = Math.max(2, p.legFront.h - drop * 0.7);
+  p.torso.y += drop * 0.6;
+  p.head.y += drop * 0.6;
+  p.head.x -= 4;
+  p.hair.y += drop * 0.6;
+  p.armBack.y += drop * 0.5;
+  p.armFront.y += drop * 0.5;
+  p.bodyTilt = -10;
+  p.eyesClosed = true;
+  return p;
+}
+
+/** Three-frame knockdown sequence: falling, then flat on the ground, held. */
+export function knockdownFrames(b: Build): Pose[] {
+  return [knockdownFallPose(b), knockdownPose(b)];
 }
 
 export function victoryPose(b: Build): Pose {

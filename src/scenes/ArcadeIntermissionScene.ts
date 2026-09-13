@@ -71,8 +71,9 @@ export class ArcadeIntermissionScene extends Phaser.Scene {
       this.add.text(BASE_WIDTH / 2, 60, 'Rooftop lights dim. A rocket descends.', { fontFamily: 'monospace', fontSize: '8px', color: '#b9b3da' }).setOrigin(0.5, 0.5);
     }
 
-    const view = new FighterView(this, opponentDef, BASE_WIDTH / 2, 160);
-    view.sprite.setScale(2.4);
+    // Stands between the stage/boss caption and the opponent's name plate (y 205).
+    const view = new FighterView(this, opponentDef, BASE_WIDTH / 2, 190);
+    view.setDisplayHeight(118);
 
     this.add.text(BASE_WIDTH / 2, 205, opponentDef.name.toUpperCase(), { fontFamily: 'monospace', fontSize: '12px', color: '#ff6b6b' }).setOrigin(0.5, 0.5);
     this.add.text(BASE_WIDTH / 2, 220, `"${opponentDef.introLine}"`, { fontFamily: 'monospace', fontSize: '8px', color: '#f5f1ff' }).setOrigin(0.5, 0.5);

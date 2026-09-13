@@ -3,18 +3,19 @@ import Phaser from 'phaser';
 import { SceneKeys } from './sceneKeys';
 import { GameContext } from '../GameContext';
 import { MatchState } from '../sim/MatchState';
-import { SIM_DT, BASE_WIDTH, GROUND_Y } from '../sim/constants';
-import { neutralFrameInput, type CharacterDef, type PlayerFrameInput } from '../sim/types';
+import { SIM_DT, BASE_WIDTH, BASE_HEIGHT, GROUND_Y } from '../sim/constants';
+import { neutralFrameInput, type CharacterDef, type MoveDef, type PlayerFrameInput } from '../sim/types';
 import type { FighterRuntime } from '../sim/FighterRuntime';
 import type { SimEvent } from '../sim/events';
 import { CHARACTERS, ELON_BOSS } from '../data/characters';
 import { STAGES } from '../data/stages';
-import { FighterView } from '../render/FighterView';
+import { FighterView, neutralImpact, type FighterImpact } from '../render/FighterView';
 import { StageView } from '../render/StageView';
 import { HUD } from '../render/HUD';
 import { EffectsView } from '../render/EffectsView';
 import { AIController } from '../ai/AIController';
 import { MenuList } from '../ui/MenuList';
+import { labelForBinding } from '../input/bindings';
 import { MenuNavRepeater } from '../ui/menuInput';
 import { TransitionGuard } from '../ui/TransitionGuard';
 import { localBoxToWorld } from '../sim/collision';
@@ -22,8 +23,16 @@ import { hurtboxFor } from '../sim/FighterRuntime';
 
 const ARENA_OFFSET_X = 0;
 const MAX_STEPS_PER_FRAME = 6;
-/** Fighters render a bit larger than their collision box for on-screen presence and readability. */
-const GAMEPLAY_SPRITE_SCALE = 1;
+/** Rows that fit the move-list panel at the game's 480x270 logical resolution without shrinking text below 7px. */
+const MOVE_LIST_ROWS_PER_PAGE = 11;
+/**
+ * Move-list column widths, in monospace characters. Sized to the widest real content so nothing
+ * is truncated: the longest move name is "Disruptive Innovation III" (25), the longest command is
+ * "Super (Basic+Special)" (21), and the widest ACTIVE field is a four-window super. Truncating
+ * names was actively misleading -- "Disruptive Innovation III" used to render as "...II",
+ * producing two rows that read identically.
+ */
+const COL = { name: 26, command: 23, startup: 4, active: 26, recovery: 5, total: 6 } as const;
 
 type Phase = 'playing' | 'paused' | 'roundEndPause' | 'matchEndPause';
 
@@ -51,6 +60,11 @@ export class FightScene extends Phaser.Scene {
   private pauseMenu!: MenuList;
   private moveListVisible = false;
   private moveListContainer!: Phaser.GameObjects.Container;
+  private moveListTitle!: Phaser.GameObjects.Text;
+  private moveListHeader!: Phaser.GameObjects.Text;
+  private moveListBody!: Phaser.GameObjects.Text;
+  private moveListFooter!: Phaser.GameObjects.Text;
+  private moveListPage = 0;
   private unsubFocus?: () => void;
   private crunchNotified = false;
   private roundBannerShown = false;
@@ -78,11 +92,11 @@ export class FightScene extends Phaser.Scene {
     this.matchState = new MatchState(this.p1Def, this.p2Def, { stage, powerupsEnabled }, GameContext.session.seed + this.matchSeedSalt());
 
     this.stageView = new StageView(this, STAGES[stage]);
+    // Scale comes from the resolved visual source (painted cells and the procedural rig have
+    // different cell sizes), so both render the fighter at the same on-screen height.
     this.p1View = new FighterView(this, this.p1Def, 150, GROUND_Y);
-    this.p1View.sprite.setScale(GAMEPLAY_SPRITE_SCALE);
     const mirror = p1Fighter === p2Fighter && this.mode !== 'arcade';
     this.p2View = new FighterView(this, this.p2Def, 330, GROUND_Y, mirror ? { tintOverride: 0x99c2ff } : undefined);
-    this.p2View.sprite.setScale(GAMEPLAY_SPRITE_SCALE);
 
     const p1Label = 'P1';
     const p2Label = this.mode === 'versus' ? 'P2' : this.mode === 'training' ? 'CPU' : 'CPU';
@@ -117,6 +131,14 @@ export class FightScene extends Phaser.Scene {
     });
 
     this.events.once('shutdown', () => this.cleanup());
+  }
+
+  /** Clears held reaction poses and pending impact edges so nothing carries into a fresh round. */
+  private resetViewReactions(): void {
+    this.p1View.resetReactionState();
+    this.p2View.resetReactionState();
+    this.p1Impact = neutralImpact();
+    this.p2Impact = neutralImpact();
   }
 
   private matchSeedSalt(): number {
@@ -219,8 +241,8 @@ export class FightScene extends Phaser.Scene {
           const pos = this.effects.hurtboxCenter(defender);
           this.effects.spawnSpark(pos.x, pos.y, 0xffe36e, e.damage > 14);
           GameContext.audio.playSfx(e.damage > 14 ? 'hitHeavy' : 'hitLight');
-          if (e.defender === 'p1') this.p1FlashThisFrame = true;
-          else this.p2FlashThisFrame = true;
+          if (e.defender === 'p1') this.p1Impact.hit = true;
+          else this.p2Impact.hit = true;
           if (e.comboHits >= 4) this.hud.showCallout('DISRUPTED!');
           break;
         }
@@ -230,6 +252,13 @@ export class FightScene extends Phaser.Scene {
           this.effects.spawnSpark(pos.x, pos.y, 0x8fbfe0, false);
           GameContext.audio.playSfx(e.guardBreak ? 'guardBreak' : 'blocked');
           if (e.guardBreak) this.hud.showCallout('GUARD BREAK!');
+          // A guard break is a recoil, not a successful guard: it routes to the stagger frames via
+          // the 'guardbreak' state, so only a non-breaking block raises the guard-impact signal.
+          if (!e.guardBreak) {
+            const impact = e.defender === 'p1' ? this.p1Impact : this.p2Impact;
+            impact.blocked = true;
+            impact.blockedCrouching = e.crouching;
+          }
           break;
         }
         case 'grabConnect': {
@@ -271,15 +300,18 @@ export class FightScene extends Phaser.Scene {
     }
   }
 
-  private p1FlashThisFrame = false;
-  private p2FlashThisFrame = false;
+  // Accumulated across every fixed step that ran since the last render, then consumed once by
+  // renderFrame(). Reading only the newest step would drop a hit or block whenever several sim
+  // steps land inside one display frame.
+  private p1Impact: FighterImpact = neutralImpact();
+  private p2Impact: FighterImpact = neutralImpact();
 
   private renderFrame(delta: number): void {
     const sim = this.matchState.sim;
-    this.p1View.update(sim.p1, ARENA_OFFSET_X, this.p1FlashThisFrame);
-    this.p2View.update(sim.p2, ARENA_OFFSET_X, this.p2FlashThisFrame);
-    this.p1FlashThisFrame = false;
-    this.p2FlashThisFrame = false;
+    this.p1View.update(sim.p1, ARENA_OFFSET_X, this.p1Impact, delta, sim.frameCount);
+    this.p2View.update(sim.p2, ARENA_OFFSET_X, this.p2Impact, delta, sim.frameCount);
+    this.p1Impact = neutralImpact();
+    this.p2Impact = neutralImpact();
     this.effects.updateProjectiles(sim.projectiles);
     this.effects.updatePickup(sim.pickup);
     this.effects.tick(delta);
@@ -329,6 +361,7 @@ export class FightScene extends Phaser.Scene {
         this.finishMatch();
       } else {
         this.matchState.startNextRound();
+        this.resetViewReactions();
         this.roundBannerShown = false;
         this.crunchNotified = false;
         this.hud.showRoundBanner(`ROUND ${this.matchState.roundNumber}`, 700);
@@ -345,6 +378,7 @@ export class FightScene extends Phaser.Scene {
       const winner = this.matchState.matchWinner!;
       if (this.mode === 'training') {
         this.matchState.resetMatch();
+        this.resetViewReactions();
         this.phase = 'playing';
         this.hud.showRoundBanner('TRAINING RESET', 600);
         return;
@@ -381,33 +415,123 @@ export class FightScene extends Phaser.Scene {
     this.pauseContainer.setVisible(false);
   }
 
+  /**
+   * Frame-data line for one move, read straight from its authoritative MoveDef. Every number
+   * shown is a real field on the definition -- nothing is inferred or averaged.
+   *
+   * ACTIVE is where this move can connect, expressed as inclusive zero-based move frames
+   * ("4-6" = frames 4, 5 and 6), which is why the panel header says so explicitly: it is a
+   * frame *range*, not a duration. Moves that do not strike with a melee window report what
+   * they actually do instead of a fabricated one -- a projectile's release frame, a counter's
+   * armed window, a grab's catch window, or a telegraphed ground strike. Multi-window moves
+   * list every window, comma-separated.
+   */
+  private moveActiveField(m: MoveDef): string {
+    const ranges = m.hits.map((h) => `${h.startupFrame}-${h.startupFrame + h.activeFrames - 1}`);
+    if (m.isGrab && ranges.length) return `grab ${ranges.join(',')}`;
+    if (ranges.length) return ranges.join(','); // every window, never just the first
+    if (m.projectile) return `shot@${m.projectile.releaseFrame ?? m.startup}`;
+    if (m.isCounter) return m.counterWindow ? `parry ${m.counterWindow.start}-${m.counterWindow.end}` : 'parry';
+    if (m.targetedStrike) return 'ground strike';
+    return '--';
+  }
+
+  private moveDataRow(m: MoveDef): string {
+    return (
+      m.name.padEnd(COL.name) +
+      m.command.padEnd(COL.command) +
+      String(m.startup).padStart(COL.startup) +
+      this.moveActiveField(m).padStart(COL.active) +
+      String(m.recovery).padStart(COL.recovery) +
+      String(m.totalFrames).padStart(COL.total)
+    );
+  }
+
+  /** Column header built from the same widths as the rows, so the two can never drift apart. */
+  private moveListHeaderLine(): string {
+    return (
+      'MOVE'.padEnd(COL.name) +
+      'COMMAND'.padEnd(COL.command) +
+      'ST'.padStart(COL.startup) +
+      'ACTIVE'.padStart(COL.active) +
+      'REC'.padStart(COL.recovery) +
+      'TOTAL'.padStart(COL.total)
+    );
+  }
+
+  /** Control reminder for one player, including Block and Grab -- both were dropped from the old list. */
+  private bindingSummary(slot: 'p1' | 'p2'): string {
+    const b = GameContext.save.bindings[slot];
+    return (
+      `Move ${labelForBinding(b.moveLeft)}/${labelForBinding(b.moveRight)}  ` +
+      `Jump ${labelForBinding(b.up)}  Crouch ${labelForBinding(b.down)}  ` +
+      `Basic ${labelForBinding(b.basic)}  Special ${labelForBinding(b.special)}  ` +
+      `Block ${labelForBinding(b.block)}  Grab ${labelForBinding(b.grab)}`
+    );
+  }
+
   private buildMoveList(): void {
-    this.moveListContainer = this.add.container(BASE_WIDTH / 2, 135);
+    this.moveListContainer = this.add.container(BASE_WIDTH / 2, BASE_HEIGHT / 2);
     this.moveListContainer.setDepth(1100);
-    const bg = this.add.rectangle(0, 0, 420, 210, 0x100a30, 0.95).setStrokeStyle(1, 0x854ac7);
+    const bg = this.add.rectangle(0, 0, 466, 256, 0x100a30, 0.96).setStrokeStyle(1, 0x854ac7);
     this.moveListContainer.add(bg);
-    const moves = this.p1Def.moves;
-    const b = GameContext.save.bindings.p1;
-    const lines = [
-      'MOVE FRAME DATA / 60 FRAMES = 1 SECOND',
-      'MOVE                        COMMAND                 START / ACTIVE / REC / TOTAL',
-      ...Object.values(moves).map(m => {
-        const active = m.hits.length
-          ? m.hits.map(h => h.startupFrame + '-' + (h.startupFrame + h.activeFrames - 1)).join(',')
-          : m.projectile ? 'shot@' + (m.projectile.releaseFrame ?? m.startup)
-          : m.isCounter ? 'counter' : 'target';
-        return m.name.padEnd(28) + m.command.padEnd(24) + m.startup + ' / ' + active + ' / ' + m.recovery + ' / ' + m.totalFrames;
-      }),
-      'Active ranges use zero-based move frames.',
-      'Basic ' + b.basic.join('/') + '  Special ' + b.special.join('/'),
-    ];
-    const text = this.add.text(0, -85, lines.join('\n'), { fontFamily: 'monospace', fontSize: '7px', color: '#f5f1ff', lineSpacing: 4, align: 'left' }).setOrigin(0.5, 0);
-    this.moveListContainer.add(text);
+
+    this.moveListTitle = this.add
+      .text(0, -121, '', { fontFamily: 'monospace', fontSize: '8px', color: '#fff23d' })
+      .setOrigin(0.5, 0);
+    this.moveListHeader = this.add
+      .text(-229, -107, '', { fontFamily: 'monospace', fontSize: '7px', color: '#9f8fd8', lineSpacing: 2 })
+      .setOrigin(0, 0);
+    this.moveListBody = this.add
+      .text(-229, -86, '', { fontFamily: 'monospace', fontSize: '7px', color: '#f5f1ff', lineSpacing: 3 })
+      .setOrigin(0, 0);
+    this.moveListFooter = this.add
+      .text(0, 122, '', { fontFamily: 'monospace', fontSize: '7px', color: '#a8d8ff', align: 'center' })
+      .setOrigin(0.5, 1);
+    this.moveListContainer.add([this.moveListTitle, this.moveListHeader, this.moveListBody, this.moveListFooter]);
     this.moveListContainer.setVisible(false);
+  }
+
+  /** Which fighter's moves the list is showing, and whose controls print alongside them. */
+  private moveListSlot: 'p1' | 'p2' = 'p1';
+
+  private movesFor(slot: 'p1' | 'p2'): MoveDef[] {
+    return Object.values(slot === 'p1' ? this.p1Def.moves : this.p2Def.moves) as MoveDef[];
+  }
+
+  private moveListPageCount(slot: 'p1' | 'p2'): number {
+    return Math.max(1, Math.ceil(this.movesFor(slot).length / MOVE_LIST_ROWS_PER_PAGE));
+  }
+
+  private refreshMoveList(): void {
+    const slot = this.moveListSlot;
+    const def = slot === 'p1' ? this.p1Def : this.p2Def;
+    const owner = slot === 'p1' ? 'P1' : this.mode === 'versus' ? 'P2' : 'CPU';
+    const moves = this.movesFor(slot);
+    const pages = this.moveListPageCount(slot);
+    this.moveListPage = Math.min(this.moveListPage, pages - 1);
+    const start = this.moveListPage * MOVE_LIST_ROWS_PER_PAGE;
+
+    this.moveListTitle.setText(`${owner} - ${def.name.toUpperCase()}   MOVE LIST   page ${this.moveListPage + 1}/${pages}`);
+    this.moveListHeader.setText(
+      this.moveListHeaderLine() + '\n' +
+        '60 frames = 1 second.  ST startup,  ACTIVE inclusive 0-based move frames,  REC recovery.',
+    );
+    this.moveListBody.setText(moves.slice(start, start + MOVE_LIST_ROWS_PER_PAGE).map((m) => this.moveDataRow(m)).join('\n'));
+
+    // Versus exposes both players' sets; training/arcade names whose set is on screen.
+    const swap = this.mode === 'versus' ? `Block: show ${slot === 'p1' ? 'P2' : 'P1'}   ` : '';
+    const page = pages > 1 ? 'Grab: next page   ' : '';
+    this.moveListFooter.setText(`${this.bindingSummary(slot)}` + '\n' + `${swap}${page}Special or Pause: back to menu`);
   }
 
   private toggleMoveList(): void {
     this.moveListVisible = !this.moveListVisible;
+    if (this.moveListVisible) {
+      this.moveListSlot = 'p1';
+      this.moveListPage = 0;
+      this.refreshMoveList();
+    }
     this.moveListContainer.setVisible(this.moveListVisible);
     this.pauseContainer.setVisible(!this.moveListVisible);
   }
@@ -440,7 +564,26 @@ export class FightScene extends Phaser.Scene {
     if (!this.guard.ready()) return;
     const frame = GameContext.input.captureFrame();
     if (this.moveListVisible) {
-      if (frame.p1.blockPressed || frame.p2.blockPressed || frame.pausePressed) this.toggleMoveList();
+      // Block swaps which player's set is shown (versus only); Grab pages through a long set.
+      if (this.mode === 'versus' && (frame.p1.blockPressed || frame.p2.blockPressed)) {
+        this.moveListSlot = this.moveListSlot === 'p1' ? 'p2' : 'p1';
+        this.moveListPage = 0;
+        this.refreshMoveList();
+        GameContext.audio.playSfx('select');
+        return;
+      }
+      if (frame.p1.grabPressed || frame.p2.grabPressed) {
+        this.moveListPage = (this.moveListPage + 1) % this.moveListPageCount(this.moveListSlot);
+        this.refreshMoveList();
+        GameContext.audio.playSfx('select');
+        return;
+      }
+      const backOut =
+        frame.p1.specialPressed ||
+        frame.p2.specialPressed ||
+        frame.pausePressed ||
+        (this.mode !== 'versus' && (frame.p1.blockPressed || frame.p2.blockPressed));
+      if (backOut) this.toggleMoveList();
       return;
     }
     const nav = this.pauseNav.update(frame.p1, frame.p2);
@@ -452,6 +595,9 @@ export class FightScene extends Phaser.Scene {
 
   private restartMatch(): void {
     this.matchState.resetMatch();
+    this.resetViewReactions();
+    this.moveListVisible = false;
+    this.moveListContainer.setVisible(false);
     this.pauseContainer.setVisible(false);
     this.phase = 'playing';
     this.roundBannerShown = false;

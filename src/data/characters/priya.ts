@@ -20,11 +20,11 @@ export const PRIYA: CharacterDef = {
   visual: {
     skin: '#caa27a',
     hair: '#241a12',
-    primary: '#ff36c8',
-    secondary: '#00e5ff',
-    pants: '#46248e',
-    accent: '#fff23d',
-    outline: '#100a30',
+    primary: '#7d3fae', // bright blazer
+    secondary: '#2d2d38', // headset
+    pants: '#232028', // dark athletic trousers
+    accent: '#f2e6c8', // clipboard / resumes / sneaker trim
+    outline: '#150f1c',
   },
   moves: {
     basic1: move('priya_basic1', 'Quick Follow-Up I', 'Basic', 'basic1', 'mid', 3, 4, {

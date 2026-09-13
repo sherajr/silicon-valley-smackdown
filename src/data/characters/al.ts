@@ -20,11 +20,11 @@ export const AL: CharacterDef = {
   visual: {
     skin: '#e3ae82',
     hair: '#5a4632',
-    primary: '#fff23d',
-    secondary: '#00e5ff',
-    pants: '#7f268d',
-    accent: '#fff23d',
-    outline: '#100a30',
+    primary: '#7a2e2e', // rumpled bowling shirt
+    secondary: '#d9c48a', // loose, crooked tie
+    pants: '#4a4238', // rumpled brown trousers
+    accent: '#5a8f4f', // bottle
+    outline: '#171013',
   },
   moves: {
     basic1: move('al_basic1', 'Last Call I', 'Basic', 'basic1', 'mid', 6, 7, {

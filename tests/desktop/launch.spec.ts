@@ -29,14 +29,36 @@ test('installed game loads art, plays offline, and retains settings after relaun
     await expect.poll(() => page.evaluate(() => (window as any).__e2eGame?.scene.isActive('Title'))).toBe(true);
     expect(await page.evaluate(() => ({ node: typeof (window as any).require, process: typeof (window as any).process })))
       .toEqual({ node: 'undefined', process: 'undefined' });
-    const missing = await page.evaluate(() => {
+    // Every production art asset must be present in the packaged bundle AND be a real decoded
+    // image at its authored geometry. Checking only textures.exists() would accept an empty or
+    // placeholder texture registered under the right name; checking the decoded source size and
+    // frame count is what makes a procedural stand-in fail here instead of passing silently.
+    const art = await page.evaluate(() => {
       const textures = (window as any).__e2eGame.textures;
-      const expected = ['hunter', 'kevin', 'al', 'priya', 'chad', 'elon'].flatMap(id =>
-        ['idle', 'walk', 'attack', 'poses'].map(action => `${id}_${action}_sheet`));
-      expected.push('stage_castro_street', 'stage_sand_hill_road', 'stage_palo_alto', 'fx_projectiles', 'fx_impact');
-      return expected.filter(key => !textures.exists(key));
+      const problems: string[] = [];
+      const check = (key: string, w: number, h: number, frames: number) => {
+        if (!textures.exists(key)) { problems.push(`${key}: missing`); return; }
+        const t = textures.get(key);
+        const src = t.source?.[0];
+        if (!src) { problems.push(`${key}: no image source`); return; }
+        if (src.width !== w || src.height !== h) problems.push(`${key}: ${src.width}x${src.height}, expected ${w}x${h}`);
+        const named = t.getFrameNames().length;
+        if (named !== frames) problems.push(`${key}: ${named} frames, expected ${frames}`);
+      };
+      for (const id of ['hunter', 'kevin', 'al', 'priya', 'chad', 'elon']) {
+        for (const action of ['idle', 'walk', 'attack', 'poses']) check(`${id}_${action}_sheet`, 192, 240, 4);
+      }
+      for (const stage of ['castro_street', 'sand_hill_road', 'palo_alto']) check(`stage_${stage}`, 480, 270, 0);
+      check('fx_projectiles', 144, 96, 6);
+      check('fx_impact', 96, 96, 4);
+      // A procedural rig texture existing at all means some sheet failed to load and a character
+      // silently fell back -- the packaged build must never ship in that state.
+      for (const key of textures.getTextureKeys()) {
+        if (String(key).startsWith('rig_')) problems.push(`${key}: procedural fallback in use`);
+      }
+      return problems;
     });
-    expect(missing).toEqual([]);
+    expect(art).toEqual([]);
     if (process.env.SVS_DESKTOP_SMOKE_ONLY === '1') {
       // A Rosetta-translated x64 process on Apple Silicon CI booted the game fine here (this
       // point was reached), but its Playwright/CDP session was observed going unresponsive

@@ -20,11 +20,11 @@ export const KEVIN: CharacterDef = {
   visual: {
     skin: '#e0ac7c',
     hair: '#1c1c1c',
-    primary: '#ff36c8',
-    secondary: '#fff23d',
-    pants: '#163f86',
-    accent: '#fff23d',
-    outline: '#100a30',
+    primary: '#22283a', // suit jacket
+    secondary: '#8a1f2b', // tie
+    pants: '#1b202e', // suit trousers
+    accent: '#c9a24b', // briefcase / glasses frame
+    outline: '#0e0e14',
   },
   moves: {
     basic1: move('kevin_basic1', 'Billable Hours I', 'Basic', 'basic1', 'mid', 5, 6, {

@@ -7,11 +7,29 @@ function hex(color: string): number {
 }
 
 /**
- * Procedurally drawn layered stage background: sky gradient, three parallax
- * bands of lit/unlit windowed buildings, a floor with subtle tiling, sign
- * text, and per-stage signature ambient props and animations. Built from
- * flat vector shapes so it reads as pixel-art at the game's native low
- * resolution without needing external art assets.
+ * True only when the stage's painted background really decoded at (at least) the game's logical
+ * resolution. A missing file or a placeholder/failed texture falls through to the procedural
+ * stage rather than stretching a broken image across the arena.
+ */
+export function stagePaintingUsable(scene: Phaser.Scene, stageId: string): boolean {
+  const key = `stage_${stageId}`;
+  if (!scene.textures.exists(key)) return false;
+  const source = scene.textures.get(key).source?.[0];
+  return !!source && source.width >= BASE_WIDTH && source.height >= BASE_HEIGHT;
+}
+
+/**
+ * Stage background. Normal play uses the painted 480x270 stage image shipped in
+ * `public/sprites/stages/<id>.png`, which is a complete composition -- sky, skyline, foliage,
+ * street-level detail and floor are all painted in. When that image is present the only things
+ * drawn over it are a subtle floor contact line (so GROUND_Y stays readable) and the Crunch Mode
+ * lighting overlay: the procedural sky bands, parallax buildings, sign text and street props
+ * below would all duplicate or cover detail the painting already has, and the sign text in
+ * particular used to collide with the round banner.
+ *
+ * The procedural path -- sky gradient, three parallax bands of windowed buildings, a tiled floor,
+ * sign text and per-stage ambient props -- remains the genuine fallback for a stage whose painted
+ * image is missing or failed to load, so the game still renders a complete stage without it.
  */
 export class StageView {
   private scene: Phaser.Scene;
@@ -19,6 +37,8 @@ export class StageView {
   private ambientTimers: Phaser.Time.TimerEvent[] = [];
   private ambientTweens: Phaser.Tweens.Tween[] = [];
   private crunchOverlay!: Phaser.GameObjects.Rectangle;
+  /** Which source actually rendered, so callers/tests can assert painted art really is on screen. */
+  readonly source: 'painted' | 'procedural';
 
   constructor(scene: Phaser.Scene, stage: StageDef) {
     this.scene = scene;
@@ -26,19 +46,28 @@ export class StageView {
     this.container.setDepth(-100);
 
     const { palette } = stage;
-    const sky = scene.add.graphics();
-    // Discrete sky bands preserve the arcade palette at native resolution.
-    sky.fillStyle(hex(palette.sky[0])).fillRect(0, 0, BASE_WIDTH, 90);
-    sky.fillStyle(hex(palette.sky[1])).fillRect(0, 90, BASE_WIDTH, GROUND_Y - 90);
-    this.container.add(sky);
-    this.buildSkyDressing(stage);
-    this.buildBand(palette.far, GROUND_Y - 92, 1, 7, 32, false);
-    this.buildBand(palette.mid, GROUND_Y - 58, 1, 5, 46, true);
-    this.buildBand(palette.near, GROUND_Y - 28, 1, 4, 62, true);
-    this.buildFloor(palette.floor, palette.accent);
+    this.source = stagePaintingUsable(scene, stage.id) ? 'painted' : 'procedural';
 
-    this.buildSigns(stage);
-    this.buildAmbient(stage);
+    if (this.source === 'painted') {
+      const bg = scene.add.image(BASE_WIDTH / 2, BASE_HEIGHT / 2, `stage_${stage.id}`);
+      bg.setDisplaySize(BASE_WIDTH, BASE_HEIGHT);
+      this.container.add(bg);
+      const floorLine = scene.add.rectangle(BASE_WIDTH / 2, GROUND_Y, BASE_WIDTH, 1, hex(palette.accent), 0.28);
+      this.container.add(floorLine);
+    } else {
+      const sky = scene.add.graphics();
+      // Discrete sky bands preserve the arcade palette at native resolution.
+      sky.fillStyle(hex(palette.sky[0])).fillRect(0, 0, BASE_WIDTH, 90);
+      sky.fillStyle(hex(palette.sky[1])).fillRect(0, 90, BASE_WIDTH, GROUND_Y - 90);
+      this.container.add(sky);
+      this.buildSkyDressing(stage);
+      this.buildBand(palette.far, GROUND_Y - 92, 1, 7, 32, false);
+      this.buildBand(palette.mid, GROUND_Y - 58, 1, 5, 46, true);
+      this.buildBand(palette.near, GROUND_Y - 28, 1, 4, 62, true);
+      this.buildFloor(palette.floor, palette.accent);
+      this.buildSigns(stage);
+      this.buildAmbient(stage);
+    }
 
     this.crunchOverlay = scene.add.rectangle(BASE_WIDTH / 2, BASE_HEIGHT / 2, BASE_WIDTH, BASE_HEIGHT, 0xaa1111, 0);
     this.crunchOverlay.setDepth(-50);

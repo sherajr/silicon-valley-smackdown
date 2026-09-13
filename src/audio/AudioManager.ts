@@ -59,6 +59,13 @@ export class AudioManager {
 
   // Shared music transport state.
   private currentTrackId: string | null = null;
+  /**
+   * Identifies which playback *backend* is actually sounding -- the synthesized score for a given
+   * scene track, or one specific recorded URL -- independent of the scene's track id. Choosing a
+   * different custom file changes this even when the scene's track id does not, which is exactly
+   * the transition playMusic()'s same-track guard used to swallow, leaving the old source playing.
+   */
+  private currentSourceKey: string | null = null;
   private stopped = true;
   private pausedForCombat = false;
 
@@ -165,18 +172,33 @@ export class AudioManager {
   }
 
   setCustomTrackFile(file: File): void {
-    this.clearCustomTrack();
+    const retired = this.retireCustomTrack();
     const url = URL.createObjectURL(file);
     this.customTrack = { url, label: file.name, revokeOnClear: true };
     if (!this.stopped && this.currentTrackId) this.playMusic(this.currentTrackId);
+    // Revoked only after playMusic() has torn the previous <audio> element off this URL --
+    // revoking while an element still points at it can abort playback mid-teardown.
+    retired?.();
   }
 
   /** Drops back to the original synthesized score. */
   clearCustomTrack(): void {
     const wasActive = !!this.customTrack;
-    if (this.customTrack?.revokeOnClear) URL.revokeObjectURL(this.customTrack.url);
-    this.customTrack = null;
+    const retired = this.retireCustomTrack();
     if (wasActive && !this.stopped && this.currentTrackId) this.playMusic(this.currentTrackId);
+    retired?.();
+  }
+
+  /**
+   * Detaches the current custom track and returns a deferred revoke for its object URL (null when
+   * there was nothing to revoke). The caller runs it *after* the transport has actually released
+   * the old element, so a retired blob URL is never revoked while still attached to a live source.
+   */
+  private retireCustomTrack(): (() => void) | null {
+    const previous = this.customTrack;
+    this.customTrack = null;
+    if (!previous?.revokeOnClear) return null;
+    return () => URL.revokeObjectURL(previous.url);
   }
 
   hasCustomTrack(): boolean {
@@ -194,9 +216,11 @@ export class AudioManager {
 
   playMusic(trackId: string): void {
     if (!this.ctx || !this.musicGain) return;
-    if (this.currentTrackId === trackId && !this.stopped && !this.pausedForCombat) return;
+    const desiredKey = this.sourceKeyFor(trackId);
+    if (this.currentSourceKey === desiredKey && !this.stopped && !this.pausedForCombat) return;
     this.stopMusic();
     this.currentTrackId = trackId;
+    this.currentSourceKey = desiredKey;
     this.stopped = false;
 
     if (this.customTrack) {
@@ -207,15 +231,26 @@ export class AudioManager {
     if (!track) {
       this.stopped = true;
       this.currentTrackId = null;
+      this.currentSourceKey = null;
       return;
     }
     this.beginSynthLoop(track, this.ctx.currentTime + 0.05, 0);
+  }
+
+  /**
+   * The recorded custom track (identified by its own URL) and the synthesized fallback
+   * (identified by scene track id) are different playback backends, so a source-key change must
+   * always force a real transition even when the scene's track id is unchanged.
+   */
+  private sourceKeyFor(trackId: string): string {
+    return this.customTrack ? `custom:${this.customTrack.url}` : `synth:${trackId}`;
   }
 
   stopMusic(): void {
     this.stopped = true;
     this.pausedForCombat = false;
     this.currentTrackId = null;
+    this.currentSourceKey = null;
     this.currentSynthTrack = null;
     this.pausedElapsedInLoop = null;
     this.cancelLoopTimer();

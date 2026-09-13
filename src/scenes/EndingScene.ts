@@ -30,8 +30,9 @@ export class EndingScene extends Phaser.Scene {
 
     this.add.text(BASE_WIDTH / 2, 20, 'THE LAST FUNDING ROUND -- SECURED', { fontFamily: 'monospace', fontSize: '10px', color: '#fff23d' }).setOrigin(0.5, 0.5);
 
-    const view = new FighterView(this, def, BASE_WIDTH / 2, 130);
-    view.sprite.setScale(2.2);
+    // Stands between the banner (y 20) and the ending text (y 175).
+    const view = new FighterView(this, def, BASE_WIDTH / 2, 168);
+    view.setDisplayHeight(132);
 
     this.add
       .text(BASE_WIDTH / 2, 175, lines.join('\n\n'), {
