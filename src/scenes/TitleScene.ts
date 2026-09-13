@@ -8,6 +8,9 @@ import { ALL_FIGHTER_IDS } from '../sim/types';
 import { CHARACTERS } from '../data/characters';
 import { buildFighterVisuals } from '../render/SpriteFactory';
 
+/** On-screen height of each fighter in the title screen's roster line. */
+const TITLE_ROSTER_H = 70;
+
 export class TitleScene extends Phaser.Scene {
   private guard = new TransitionGuard();
   private prompt!: Phaser.GameObjects.Text;
@@ -56,8 +59,10 @@ export class TitleScene extends Phaser.Scene {
       const visuals = buildFighterVisuals(this, CHARACTERS[id]);
       const x = BASE_WIDTH / 2 + (i - (n - 1) / 2) * 64;
       const spr = this.add.sprite(x, BASE_HEIGHT - 12, visuals.idleSheet, 0);
-      spr.setOrigin(0.5, 1);
-      spr.setScale(1);
+      spr.setOrigin(visuals.originX, visuals.originY);
+      // Height, not a raw scale: painted cells and rig cells differ, and a fixed scale would
+      // render the roster line at two different sizes depending on which source resolved.
+      spr.setScale(TITLE_ROSTER_H / visuals.cellH);
       spr.play(visuals.idleAnim);
     });
 

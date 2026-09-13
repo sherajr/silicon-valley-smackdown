@@ -762,6 +762,10 @@ export class CombatSim {
   }
 
   private applyBlockedHit(attacker: FighterRuntime, defender: FighterRuntime, effect: HitEffect, events: SimEvent[], attackerSlot: PlayerSlot, defenderSlot: PlayerSlot): void {
+    // Captured before defender.state changes below -- the presentation layer needs to know whether
+    // this was a standing or crouching guard, and by the time it sees the event defender.state has
+    // already moved on to 'blockstun'/'guardbreak'.
+    const crouching = defender.state === 'crouch';
     const chip = effect.damage * CHIP_DAMAGE_RATIO * attacker.modifiers.damageMult;
     defender.health = Math.max(0, defender.health - chip);
     defender.guard = Math.max(0, defender.guard - effect.guardDamage);
@@ -780,7 +784,7 @@ export class CombatSim {
     attacker.hype = Math.min(MAX_HYPE, attacker.hype + chip * HYPE_GAIN_ON_DEAL_RATIO);
     defender.hype = Math.min(MAX_HYPE, defender.hype + chip * HYPE_GAIN_ON_TAKE_RATIO);
     this.freezeFrames = Math.max(this.freezeFrames, Math.ceil(effect.hitstopFrames * 0.5));
-    events.push({ type: 'blocked', attacker: attackerSlot, defender: defenderSlot, damage: chip, hitstop: effect.hitstopFrames, guardBreak });
+    events.push({ type: 'blocked', attacker: attackerSlot, defender: defenderSlot, damage: chip, hitstop: effect.hitstopFrames, guardBreak, crouching });
   }
 
   private dealDamage(

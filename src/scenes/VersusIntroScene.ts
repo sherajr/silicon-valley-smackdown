@@ -8,6 +8,9 @@ import { CHARACTERS } from '../data/characters';
 import { STAGES } from '../data/stages';
 import { FighterView } from '../render/FighterView';
 
+const INTRO_FEET_Y = 228;
+const INTRO_FIGHTER_H = 128;
+
 export class VersusIntroScene extends Phaser.Scene {
   private guard = new TransitionGuard();
   private advanced = false;
@@ -28,11 +31,12 @@ export class VersusIntroScene extends Phaser.Scene {
     this.add.text(BASE_WIDTH / 2, 20, stageDef.name.toUpperCase(), { fontFamily: 'monospace', fontSize: '10px', color: stageDef.palette.neon }).setOrigin(0.5, 0.5);
     this.add.text(BASE_WIDTH / 2, 40, 'VS', { fontFamily: 'monospace', fontSize: '20px', color: '#fff23d' }).setOrigin(0.5, 0.5);
 
-    const p1View = new FighterView(this, p1Def, 130, 190);
-    p1View.sprite.setScale(2.2);
+    // Sized and seated to stand between the intro line (y 90) and the name plates (y 240).
+    const p1View = new FighterView(this, p1Def, 130, INTRO_FEET_Y);
+    p1View.setDisplayHeight(INTRO_FIGHTER_H);
     const mirror = p1Fighter === p2Fighter;
-    const p2View = new FighterView(this, p2Def, BASE_WIDTH - 130, 190, mirror ? { tintOverride: 0x99c2ff } : undefined);
-    p2View.sprite.setScale(2.2);
+    const p2View = new FighterView(this, p2Def, BASE_WIDTH - 130, INTRO_FEET_Y, mirror ? { tintOverride: 0x99c2ff } : undefined);
+    p2View.setDisplayHeight(INTRO_FIGHTER_H);
     p2View.sprite.setFlipX(true);
 
     this.add.text(130, 240, `P1: ${p1Def.name.toUpperCase()}`, { fontFamily: 'monospace', fontSize: '9px', color: '#fff23d' }).setOrigin(0.5, 0.5);

@@ -17,8 +17,19 @@ const TILE_W = 70;
 const TILE_H = 58;
 const GRID_ORIGIN_X = BASE_WIDTH / 2 - TILE_W * 1.5;
 const GRID_ORIGIN_Y = 40;
-const PREVIEW_Y = 246;
-const PREVIEW_SCALE = 0.72;
+/**
+ * Previews stand in the empty columns either side of the roster grid, with their feet above the
+ * info panels. Placed under the panels (the old position) the painted art covered each player's
+ * name, tagline, stats and key prompts.
+ */
+const PREVIEW_FEET_Y = 186;
+const PREVIEW_X = 66;
+/** On-screen height of a preview fighter, converted to a per-source scale from its own cell height. */
+const PREVIEW_SPRITE_H = 84;
+/** On-screen height of a roster tile portrait -- sized to sit inside the tile, above its name label. */
+const TILE_SPRITE_H = 36;
+const INFO_MARGIN_X = 14;
+const INFO_TOP_Y = 193;
 
 const P2_TINT = 0x99c2ff;
 
@@ -82,9 +93,11 @@ export class CharacterSelectScene extends Phaser.Scene {
 
       const visuals = buildFighterVisuals(this, def);
       const portrait = parseFrameKey(visuals.portraitFrame);
-      const spr = this.add.sprite(x, y - 2, portrait.texture, portrait.frame);
-      spr.setOrigin(0.5, 0.85);
-      spr.setScale(0.62);
+      const spr = this.add.sprite(x, y + 12, portrait.texture, portrait.frame);
+      // Anchored on the source's own ground pivot and scaled from its own cell height, so a
+      // portrait fills the tile without overflowing it whichever visual source produced it.
+      spr.setOrigin(visuals.originX, visuals.originY);
+      spr.setScale(TILE_SPRITE_H / visuals.cellH);
       if (locked) spr.setTint(0x2a2a33);
       this.tileSprites.push(spr);
 
@@ -103,16 +116,19 @@ export class CharacterSelectScene extends Phaser.Scene {
     this.p2Cursor = this.add.rectangle(0, 0, TILE_W - 10, TILE_H - 10).setStrokeStyle(2, 0x4fd0ff);
     this.p2Cursor.setVisible(this.mode === 'versus');
 
+    // Inset past the arcade backdrop's side markers (x 3-8 and 472-477) so no info line is
+    // overlapped by the border decoration.
     const infoStyle = { fontFamily: 'monospace', fontSize: '8px', color: '#f5f1ff', lineSpacing: 3 } as const;
     if (this.mode === 'versus') {
-      this.p1InfoText = this.add.text(6, 195, '', { ...infoStyle, color: '#ffe28a' });
-      this.p2InfoText = this.add.text(BASE_WIDTH - 6, 195, '', { ...infoStyle, color: '#a8d8ff', align: 'right' }).setOrigin(1, 0);
+      this.p1InfoText = this.add.text(INFO_MARGIN_X, INFO_TOP_Y, '', { ...infoStyle, color: '#ffe28a' });
+      this.p2InfoText = this.add.text(BASE_WIDTH - INFO_MARGIN_X, INFO_TOP_Y, '', { ...infoStyle, color: '#a8d8ff', align: 'right' }).setOrigin(1, 0);
     } else {
-      this.p1InfoText = this.add.text(BASE_WIDTH / 2, 195, '', { ...infoStyle, align: 'center' }).setOrigin(0.5, 0);
+      this.p1InfoText = this.add.text(BASE_WIDTH / 2, INFO_TOP_Y, '', { ...infoStyle, align: 'center' }).setOrigin(0.5, 0);
       this.p2InfoText = this.add.text(0, 0, '').setVisible(false);
     }
+    // Clear of the backdrop's bottom border stripes (y 258-269).
     this.statusText = this.add
-      .text(BASE_WIDTH / 2, BASE_HEIGHT - 10, '', { fontFamily: 'monospace', fontSize: '8px', color: '#b9b3da' })
+      .text(BASE_WIDTH / 2, BASE_HEIGHT - 18, '', { fontFamily: 'monospace', fontSize: '8px', color: '#b9b3da' })
       .setOrigin(0.5, 0.5);
 
     this.refreshCursors();
@@ -163,8 +179,8 @@ export class CharacterSelectScene extends Phaser.Scene {
     this.previewP1?.destroy();
     this.previewP1 = null;
     const id1 = this.roster[this.p1Index];
-    this.previewP1 = new FighterView(this, CHARACTERS[id1], 130, PREVIEW_Y);
-    this.previewP1.sprite.setScale(PREVIEW_SCALE);
+    this.previewP1 = new FighterView(this, CHARACTERS[id1], PREVIEW_X, PREVIEW_FEET_Y);
+    this.previewP1.sprite.setScale(PREVIEW_SPRITE_H / this.previewP1.visuals.cellH);
     this.previewP1.playIdlePreview();
     this.p1InfoText.setText(this.describeFighter(id1, 'P1', GameContext.save.bindings.p1));
 
@@ -173,8 +189,8 @@ export class CharacterSelectScene extends Phaser.Scene {
       this.previewP2 = null;
       const id2 = this.roster[this.p2Index];
       const mirror = id1 === id2;
-      this.previewP2 = new FighterView(this, CHARACTERS[id2], BASE_WIDTH - 130, PREVIEW_Y, mirror ? { tintOverride: P2_TINT } : undefined);
-      this.previewP2.sprite.setScale(PREVIEW_SCALE);
+      this.previewP2 = new FighterView(this, CHARACTERS[id2], BASE_WIDTH - PREVIEW_X, PREVIEW_FEET_Y, mirror ? { tintOverride: P2_TINT } : undefined);
+      this.previewP2.sprite.setScale(PREVIEW_SPRITE_H / this.previewP2.visuals.cellH);
       this.previewP2.playIdlePreview();
       this.previewP2.sprite.setFlipX(true);
       this.p2InfoText.setText(this.describeFighter(id2, 'P2', GameContext.save.bindings.p2));

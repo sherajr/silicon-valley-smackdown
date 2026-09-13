@@ -3,7 +3,7 @@ export type PlayerSlot = 'p1' | 'p2';
 export type SimEvent =
   | { type: 'moveStarted'; who: PlayerSlot; moveId: string; kind: string; isSuper: boolean }
   | { type: 'hit'; attacker: PlayerSlot; defender: PlayerSlot; damage: number; comboHits: number; guardBreak: boolean; hitstop: number; knockdown: boolean }
-  | { type: 'blocked'; attacker: PlayerSlot; defender: PlayerSlot; damage: number; hitstop: number; guardBreak: boolean }
+  | { type: 'blocked'; attacker: PlayerSlot; defender: PlayerSlot; damage: number; hitstop: number; guardBreak: boolean; crouching: boolean }
   | { type: 'grabConnect'; attacker: PlayerSlot; defender: PlayerSlot; damage: number }
   | { type: 'grabEscape'; escaper: PlayerSlot }
   | { type: 'throwBreak' }

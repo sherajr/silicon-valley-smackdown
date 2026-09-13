@@ -68,11 +68,11 @@ function buildMoves(isBoss: boolean): CharacterDef['moves'] {
 const VISUAL = {
   skin: '#e2ac82',
   hair: '#2a2520',
-  primary: '#fff23d',
-  secondary: '#ff36c8',
-  pants: '#173b75',
-  accent: '#fff23d',
-  outline: '#100a30',
+  primary: '#14151c', // dark futuristic jacket
+  secondary: '#3a3f52', // jacket trim / collar
+  pants: '#101116', // dark trousers
+  accent: '#d0d6de', // rocket boot / rocket accessory
+  outline: '#0a0a0e',
 };
 
 export const ELON_BOSS: CharacterDef = {
