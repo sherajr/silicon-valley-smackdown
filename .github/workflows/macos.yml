@@ -91,6 +91,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    # Serialises this job against the Windows workflow's release job for the same tag, so the
+    # look-before-create below cannot interleave with the other platform's.
+    concurrency:
+      group: release-${{ github.ref_name }}
+      cancel-in-progress: false
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -101,10 +106,23 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.ref_name }}
-        # The Windows workflow races this one for the same tag; whichever finishes first creates
-        # the draft, the other just uploads its assets onto it. Try create first and fall back
-        # to upload on failure (rather than check-then-act) to close the race window.
+        # Both platform workflows publish into one release per tag. This used to try
+        # `gh release create` first and fall back to `gh release upload` on failure, on the
+        # assumption that creating a release for an existing tag fails. It does not for drafts:
+        # a draft release does not occupy its tag until it is published, so the second workflow
+        # silently created a SECOND draft and v1.0.0's assets ended up split across two of them
+        # (Windows in one, macOS in the other). Look for an existing release for this tag --
+        # drafts included, which is why this uses the API rather than `gh release view` -- and
+        # upload onto it when there is one. The concurrency group above removes the race that
+        # made check-then-act unsafe before.
         run: |
           set -euo pipefail
-          gh release create "$RELEASE_TAG" release/* --draft --verify-tag --title "Silicon Valley Smackdown $RELEASE_TAG" --generate-notes \
-            || gh release upload "$RELEASE_TAG" release/* --clobber
+          existing="$(gh api "repos/$GH_REPO/releases" --paginate \
+            --jq ".[] | select(.tag_name == \"$RELEASE_TAG\") | .id" | head -n 1)"
+          if [ -n "$existing" ]; then
+            echo "Release $RELEASE_TAG already exists (id $existing); uploading this platform's assets onto it."
+            gh release upload "$RELEASE_TAG" release/* --clobber
+          else
+            echo "No release for $RELEASE_TAG yet; creating the draft."
+            gh release create "$RELEASE_TAG" release/* --draft --verify-tag --title "Silicon Valley Smackdown $RELEASE_TAG" --generate-notes
+          fi
