@@ -13,6 +13,8 @@ export interface ConsoleErrors {
 }
 
 /** Attaches pageerror/console.error/requestfailed listeners and returns a live list of messages seen so far. */
+const BUFFERED_MEDIA_ABORT = /\.(mp3|wav|ogg|m4a)(\?[^\s]*)?\s+net::ERR_ABORTED$/;
+
 export function collectErrors(page: Page): ConsoleErrors {
   const errors: ConsoleErrors = { list: [] };
   page.on('pageerror', (err) => errors.list.push(`pageerror: ${err.message}`));
@@ -21,7 +23,14 @@ export function collectErrors(page: Page): ConsoleErrors {
   });
   page.on('requestfailed', (req) => {
     const failure = req.failure();
-    if (failure) errors.list.push(`requestfailed: ${req.url()} ${failure.errorText}`);
+    if (!failure) return;
+    // A media element abandons its in-flight ranged request once the resource is fully
+    // buffered, which the network layer always reports as ERR_ABORTED. It is not a failure:
+    // the bundled soundtrack reaches readyState 4 with no MediaError and keeps playing, which
+    // tests/e2e/bundled-music.spec.ts asserts directly rather than inferring from silence here.
+    // Matched narrowly so a genuinely broken media request still shows up.
+    if (BUFFERED_MEDIA_ABORT.test(`${req.url()} ${failure.errorText}`)) return;
+    errors.list.push(`requestfailed: ${req.url()} ${failure.errorText}`);
   });
   return errors;
 }
