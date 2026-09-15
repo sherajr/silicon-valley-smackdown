@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { BASE_WIDTH, BASE_HEIGHT } from './sim/constants';
+import { GameContext } from './GameContext';
 import { BootScene } from './scenes/BootScene';
 import { TitleScene } from './scenes/TitleScene';
 import { MainMenuScene } from './scenes/MainMenuScene';
@@ -55,4 +56,9 @@ const game = new Phaser.Game(config);
 // opts in, so ordinary play never exposes internals.
 if (new URLSearchParams(location.search).get('e2e') === '1') {
   (window as unknown as { __e2eGame?: Phaser.Game }).__e2eGame = game;
+  // The soundtrack plays through a detached `new Audio()` element that never enters the DOM, so
+  // there is no way to observe it from a test without a handle on the manager that owns it. The
+  // packaged desktop app in particular resolves the track through smackdown:// with a different
+  // base than the browser build, and that is only worth asserting if playback can be read back.
+  (window as unknown as { __e2eAudio?: unknown }).__e2eAudio = GameContext.audio;
 }

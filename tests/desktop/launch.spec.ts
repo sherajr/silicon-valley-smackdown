@@ -59,6 +59,29 @@ test('installed game loads art, plays offline, and retains settings after relaun
       return problems;
     });
     expect(art).toEqual([]);
+
+    // The bundled soundtrack resolves through smackdown:// here rather than HTTP, with its URL
+    // rewritten by Vite's './' desktop base -- a path that works in the browser build can still
+    // fail once packaged, so this reads the real element's playback state rather than trusting
+    // that the file shipped. The track only starts after a user gesture, hence the tap first.
+    await tap(page, 'KeyV'); // Title -> Main Menu, and the gesture that satisfies autoplay policy
+    await expect.poll(() => page.evaluate(() => (window as any).__e2eGame.scene.isActive('MainMenu'))).toBe(true);
+    await expect.poll(
+      () => page.evaluate(() => (window as any).__e2eAudio?.recordedEl?.readyState ?? -1),
+      { timeout: 20_000 },
+    ).toBe(4); // HAVE_ENOUGH_DATA
+    const music = await page.evaluate(() => {
+      const el = (window as any).__e2eAudio.recordedEl as HTMLAudioElement;
+      return { src: el.src, paused: el.paused, loop: el.loop, error: el.error ? el.error.code : null, at: el.currentTime };
+    });
+    expect(music.src.startsWith('smackdown://game/'), `unexpected soundtrack URL: ${music.src}`).toBe(true);
+    expect(music.src).toContain('celtic_arcade');
+    expect(music.error).toBeNull();
+    expect(music.loop).toBe(true);
+    expect(music.paused).toBe(false);
+    await page.waitForTimeout(1200);
+    const advanced = await page.evaluate(() => ((window as any).__e2eAudio.recordedEl as HTMLAudioElement).currentTime);
+    expect(advanced - music.at, 'packaged soundtrack should actually be advancing').toBeGreaterThan(0.4);
     if (process.env.SVS_DESKTOP_SMOKE_ONLY === '1') {
       // A Rosetta-translated x64 process on Apple Silicon CI booted the game fine here (this
       // point was reached), but its Playwright/CDP session was observed going unresponsive
@@ -69,8 +92,7 @@ test('installed game loads art, plays offline, and retains settings after relaun
       expect(errors.list).toEqual([]);
       return;
     }
-    await tap(page, 'KeyV'); // Title -> Main Menu (Single Player highlighted)
-    await expect.poll(() => page.evaluate(() => (window as any).__e2eGame.scene.isActive('MainMenu'))).toBe(true);
+    // Already on Main Menu (Single Player highlighted) from the soundtrack check above.
     // Change a real setting through the game UI, then verify across process exit.
     for (let i = 0; i < 4; i++) await tap(page, 'KeyS'); // -> Settings
     await tap(page, 'KeyV'); // confirm -> Settings scene (Audio tab, Master row)

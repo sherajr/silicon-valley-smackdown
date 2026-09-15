@@ -1,4 +1,9 @@
 import { MUSIC_TRACKS, type MusicTrack, type DrumHit } from './tracks';
+// Imported rather than referenced by a hand-written path so Vite fingerprints the file and
+// rewrites the URL for whichever base the build uses -- '/' for the web build, './' for the
+// packaged desktop build, or a VITE_BASE subpath. A literal '/audio/...' string would break
+// the desktop app and any subpath deployment.
+import celticArcadeUrl from './tracks/celtic_arcade.mp3';
 
 export type SfxId =
   | 'select'
@@ -28,16 +33,17 @@ interface SynthVoice {
 }
 
 /**
- * A configured bundled recording (e.g. a licensed track dropped into
- * /public/audio and pointed at here) that plays as the default gameplay
- * soundtrack instead of the synthesized fallback, without requiring the user
- * to pick a file. Left null when no such asset is bundled -- nothing is
- * fetched and nothing is requested, so a missing/unset asset never causes
- * failing network requests or a build-time dependency on a file that may not
- * exist yet.
+ * The bundled recording that plays as the default soundtrack instead of the synthesized score,
+ * with no action from the player. Set to null to ship with the synthesized score as the default
+ * again; nothing is then fetched or requested.
+ *
+ * Note this replaces the music everywhere, not per stage: playMusic() routes to the recorded
+ * backend whenever a track is set, so the same recording plays on the menus and all three
+ * stages. Players can still switch back with Settings -> Audio -> Use Original Score, or pick
+ * their own file.
  */
-const BUNDLED_TRACK_URL: string | null = null;
-const BUNDLED_TRACK_LABEL = 'Ox — Slàinte Mhath';
+const BUNDLED_TRACK_URL: string | null = celticArcadeUrl;
+const BUNDLED_TRACK_LABEL = 'Celtic Arcade Run — peaceantz';
 
 const DEFAULT_TRACK_LABEL = 'Original Score';
 
