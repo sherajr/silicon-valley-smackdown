@@ -221,12 +221,49 @@ const drawElonDetails: DetailPainter = (ctx, layout, visual) => {
   ctx.fill();
 };
 
+const drawMaulDetails: DetailPainter = (ctx, layout, visual, opts) => {
+  const head = rectPx(layout.head);
+  const torso = rectPx(layout.torso);
+
+  // Crown of horns: short spikes around the top of the skull, the silhouette cue that survives
+  // even when the whole figure is a dark shape a dozen pixels wide.
+  ctx.fillStyle = lighten('#6f6047', 0.1);
+  const crownY = head.y + 1;
+  for (const [fx, h] of [[0.18, 3], [0.38, 4], [0.6, 4], [0.82, 3]] as const) {
+    const hx = head.x + head.w * fx;
+    ctx.beginPath();
+    ctx.moveTo(hx - 1, crownY);
+    ctx.lineTo(hx + 1, crownY);
+    ctx.lineTo(hx, crownY - h);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Zabrak facial tattoo, reduced to the two shapes that still read at this size: a black band
+  // across the brow and a wedge down the centre of the face.
+  const ink = darken(visual.outline, 0.2);
+  line(ctx, head.x + 1, head.y + head.h * 0.34, head.x + head.w - 2, head.y + head.h * 0.34, ink);
+  line(ctx, head.x + head.w * 0.5, head.y + head.h * 0.38, head.x + head.w * 0.5, head.y + head.h - 2, ink);
+
+  if (!opts.eyesClosed) {
+    dot(ctx, head.x + head.w * 0.34, head.y + head.h * 0.46, 0.8, '#ffb300');
+    dot(ctx, head.x + head.w * 0.66, head.y + head.h * 0.46, 0.8, '#ffb300');
+  }
+
+  // Hooded robe: a V of darker cloth over the chest, and the belt.
+  line(ctx, torso.x + torso.w * 0.28, torso.y, torso.x + torso.w * 0.5, torso.y + torso.h * 0.45, visual.secondary);
+  line(ctx, torso.x + torso.w * 0.72, torso.y, torso.x + torso.w * 0.5, torso.y + torso.h * 0.45, visual.secondary);
+  ctx.fillStyle = darken(visual.secondary, 0.25);
+  ctx.fillRect(torso.x, torso.y + torso.h - 3, torso.w, 2);
+};
+
 const PAINTERS: Record<FighterId, DetailPainter> = {
   hunter: drawHunterDetails,
   kevin: drawKevinDetails,
   al: drawAlDetails,
   priya: drawPriyaDetails,
   chad: drawChadDetails,
+  maul: drawMaulDetails,
   elon: drawElonDetails,
 };
 

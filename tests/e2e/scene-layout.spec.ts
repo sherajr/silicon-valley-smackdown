@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { collectErrors, gotoGame, tap } from './helpers';
+import { ALL_FIGHTER_IDS } from '../../src/sim/types';
 
 /**
  * Layout coverage for the scenes that draw fighters outside the arena. Restoring the painted art
@@ -51,7 +52,9 @@ test('the title screen roster line renders painted art fully on screen', async (
   await gotoGame(page);
   const boxes = await sceneBoxes(page, 'Title');
   const sprites = boxes.filter((b) => b.kind === 'Sprite');
-  expect(sprites).toHaveLength(6);
+  // Derived, not hardcoded: the title line lays itself out from ALL_FIGHTER_IDS, so adding a
+  // fighter should move this assertion automatically rather than fail it.
+  expect(sprites).toHaveLength(ALL_FIGHTER_IDS.length);
   for (const s of sprites) {
     expect(s.text).toMatch(/_idle_sheet$/);
     expect(s.text.startsWith('rig_')).toBe(false);

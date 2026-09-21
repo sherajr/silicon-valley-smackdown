@@ -34,6 +34,12 @@
       "attack": "/sprites/fighters/chad/attack.png",
       "poses": "/sprites/fighters/chad/poses.png"
     },
+    "maul": {
+      "idle": "/sprites/fighters/maul/idle.png",
+      "walk": "/sprites/fighters/maul/walk.png",
+      "attack": "/sprites/fighters/maul/attack.png",
+      "poses": "/sprites/fighters/maul/poses.png"
+    },
     "elon": {
       "idle": "/sprites/fighters/elon/idle.png",
       "walk": "/sprites/fighters/elon/walk.png",

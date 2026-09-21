@@ -45,7 +45,7 @@ test('installed game loads art, plays offline, and retains settings after relaun
         const named = t.getFrameNames().length;
         if (named !== frames) problems.push(`${key}: ${named} frames, expected ${frames}`);
       };
-      for (const id of ['hunter', 'kevin', 'al', 'priya', 'chad', 'elon']) {
+      for (const id of ['hunter', 'kevin', 'al', 'priya', 'chad', 'maul', 'elon']) {
         for (const action of ['idle', 'walk', 'attack', 'poses']) check(`${id}_${action}_sheet`, 192, 240, 4);
       }
       for (const stage of ['castro_street', 'sand_hill_road', 'palo_alto']) check(`stage_${stage}`, 480, 270, 0);

@@ -31,3 +31,6 @@ coverage
 *.njsproj
 *.sln
 *.sw?
+
+# Third-party source assets (e.g. the Darth Maul .blend + textures): large, not redistributable.
+downloads/

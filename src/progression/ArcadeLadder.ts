@@ -22,7 +22,13 @@ const HUNTER_LADDER: LadderStop[] = [
  */
 export function buildLadder(fighter: FighterId): LadderStop[] {
   if (fighter === 'hunter') return HUNTER_LADDER;
-  const others = REGULAR_FIGHTER_IDS.filter((id) => id !== fighter);
+  const pool = REGULAR_FIGHTER_IDS.filter((id) => id !== fighter);
+  // A ladder is four regulars plus Elon, but there are now more than four other regulars, so a
+  // fixed slice would make whoever sits last in REGULAR_FIGHTER_IDS unreachable as an opponent.
+  // Rotating the pool by the player's own roster index keeps the ladder deterministic and
+  // duplicate-free while giving every regular a turn across the cast.
+  const offset = Math.max(0, REGULAR_FIGHTER_IDS.indexOf(fighter)) % pool.length;
+  const others = [...pool.slice(offset), ...pool.slice(0, offset)];
   return [
     { opponent: others[0], stage: 'castro_street' },
     { opponent: others[1], stage: 'castro_street' },

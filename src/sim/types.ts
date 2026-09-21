@@ -2,10 +2,10 @@
 // data, AI, and presentation layers. Positions/sizes are expressed in "sim
 // units" which map 1:1 to pixels on the 480x270 base canvas.
 
-export type FighterId = 'hunter' | 'kevin' | 'al' | 'priya' | 'chad' | 'elon';
+export type FighterId = 'hunter' | 'kevin' | 'al' | 'priya' | 'chad' | 'maul' | 'elon';
 
-export const ALL_FIGHTER_IDS: FighterId[] = ['hunter', 'kevin', 'al', 'priya', 'chad', 'elon'];
-export const REGULAR_FIGHTER_IDS: FighterId[] = ['hunter', 'kevin', 'al', 'priya', 'chad'];
+export const ALL_FIGHTER_IDS: FighterId[] = ['hunter', 'kevin', 'al', 'priya', 'chad', 'maul', 'elon'];
+export const REGULAR_FIGHTER_IDS: FighterId[] = ['hunter', 'kevin', 'al', 'priya', 'chad', 'maul'];
 
 export type StageId = 'castro_street' | 'sand_hill_road' | 'palo_alto';
 export const ALL_STAGE_IDS: StageId[] = ['castro_street', 'sand_hill_road', 'palo_alto'];

@@ -100,6 +100,8 @@ const BOTTLE: (b: Build) => RectStyle = (b) => propAt(b, 6, 14, '#4c7a3f');
 const CLIPBOARD: (b: Build) => RectStyle = (b) => propAt(b, 10, 13, '#f2e6c8');
 const TERM_SHEET: (b: Build) => RectStyle = (b) => propAt(b, 5, 15, '#e8e4d8');
 const ROCKET: (b: Build) => RectStyle = (b) => propAt(b, 7, 16, '#c7ccd3');
+/** Maul's saberstaff: the only prop that is a held weapon rather than a thrown object, so it is tall, thin and self-lit. */
+const SABERSTAFF: (b: Build) => RectStyle = (b) => ({ ...propAt(b, 3, 34, '#ff3b2f', -10), glowColor: '#ffd0c4' });
 /** Hunter's signature presentation prop: a silver laptop with a bright cyan screen glow, distinct from his thrown iPad. */
 const LAPTOP: (b: Build) => RectStyle = (b) => ({ ...propAt(b, 16, 11, '#c7d0d8'), glowColor: '#8fe9ff' });
 
@@ -200,6 +202,26 @@ export function chadFrames(def: CharacterDef): CharacterFrameSet {
   });
 }
 
+export function maulFrames(def: CharacterDef): CharacterFrameSet {
+  return buildFrameSet(def, {
+    signatureProp: SABERSTAFF,
+    hairStyle: 'short',
+    moves: (b, prop) => ({
+      basic1: jabArchetype(b, prop),
+      basic2: jabArchetype(b, prop),
+      basic3: hookArchetype(b, prop),
+      crouchBasic: crouchStrikeArchetype(b, prop),
+      jumpBasic: airStrikeArchetype(b, prop),
+      forwardBasic: heavyLungeArchetype(b, prop),
+      // Force Shove throws no object, but the staff stays in hand through it.
+      special: throwArchetype(b, prop),
+      downSpecial: counterStanceArchetype(b, prop),
+      grab: grabArchetype(b),
+      super: [superWindupPose(b), ...hookArchetype(b, prop), superFinisherPose(b, prop)],
+    }),
+  });
+}
+
 export function elonFrames(def: CharacterDef): CharacterFrameSet {
   return buildFrameSet(def, {
     signatureProp: () => null,
@@ -231,6 +253,8 @@ export function framesForCharacter(def: CharacterDef): CharacterFrameSet {
       return priyaFrames(def);
     case 'chad':
       return chadFrames(def);
+    case 'maul':
+      return maulFrames(def);
     case 'elon':
       return elonFrames(def);
   }
