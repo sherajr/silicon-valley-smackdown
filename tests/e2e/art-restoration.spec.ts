@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { collectErrors, gotoGame, tap, waitFor } from './helpers';
+import { ALL_FIGHTER_IDS } from '../../src/sim/types';
 
 /**
  * Runtime proof that the painted production art is loaded AND actually on screen, that the
@@ -134,7 +135,7 @@ test('painted fighter art and painted stages are loaded and actually rendered', 
   // Every production sheet and stage image decoded at its real geometry -- not merely registered.
   const assets = await page.evaluate(() => {
     const textures = (window as any).__e2eGame.textures;
-    const ids = ['hunter', 'kevin', 'al', 'priya', 'chad', 'elon'];
+    const ids = ['hunter', 'kevin', 'al', 'priya', 'chad', 'maul', 'elon'];
     const out: Record<string, { w: number; h: number; frames: number } | null> = {};
     for (const id of ids) {
       for (const action of ['idle', 'walk', 'attack', 'poses']) {
@@ -184,7 +185,7 @@ test('all three stages render their painted background in a live fight', async (
 });
 
 test('every fighter renders from painted art with feet planted on the ground line', async ({ page }) => {
-  for (const id of ['hunter', 'kevin', 'al', 'priya', 'chad', 'elon'] as const) {
+  for (const id of ['hunter', 'kevin', 'al', 'priya', 'chad', 'maul', 'elon'] as const) {
     await startFight(page, id, id === 'kevin' ? 'hunter' : 'kevin');
     const s = await fightState(page);
     expect(s.p1.source, id).toBe('art');
@@ -221,7 +222,8 @@ test('title, character select and previews all show the painted art', async ({ p
         : null,
     };
   });
-  expect(select.tiles.length).toBe(6);
+  // Versus mode lists the whole roster, Elon included (locked until unlocked, but still tiled).
+  expect(select.tiles.length).toBe(ALL_FIGHTER_IDS.length);
   for (const t of select.tiles) {
     expect(t.key).toMatch(/_(idle|walk|attack|poses)_sheet$/);
     expect(t.key.startsWith('rig_')).toBe(false);

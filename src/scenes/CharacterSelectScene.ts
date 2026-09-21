@@ -12,10 +12,16 @@ import { FighterView } from '../render/FighterView';
 import { buildLadder } from '../progression/ArcadeLadder';
 import { labelForBinding } from '../input/bindings';
 
-const GRID_COLS = 3;
+/**
+ * Four columns, not three: at seven fighters a 3-wide grid needs a third row, and that row's
+ * tiles (y 160-210) run straight through the info panels at INFO_TOP_Y. Four columns keeps the
+ * whole roster in two rows, and the grid still clears both preview fighters horizontally
+ * (tiles span x 100-380, previews sit at x 66 and 414).
+ */
+const GRID_COLS = 4;
 const TILE_W = 70;
 const TILE_H = 58;
-const GRID_ORIGIN_X = BASE_WIDTH / 2 - TILE_W * 1.5;
+const GRID_ORIGIN_X = BASE_WIDTH / 2 - TILE_W * 2;
 const GRID_ORIGIN_Y = 40;
 /**
  * Previews stand in the empty columns either side of the roster grid, with their feet above the

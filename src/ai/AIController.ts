@@ -28,6 +28,9 @@ const TENDENCIES: Record<FighterId, TendencyWeights> = {
   al: { zoning: 0.15, rush: 0.75, grabby: 0.6, defensive: 0.25 },
   priya: { zoning: 0.35, rush: 0.7, grabby: 0.3, defensive: 0.3 },
   chad: { zoning: 0.6, rush: 0.2, grabby: 0.35, defensive: 0.55 },
+  // Plays his reach: holds staff range and pokes rather than closing, and is quick to parry,
+  // because he has the least health in the game to spend on trades.
+  maul: { zoning: 0.5, rush: 0.4, grabby: 0.3, defensive: 0.5 },
   elon: { zoning: 0.55, rush: 0.5, grabby: 0.35, defensive: 0.4 },
 };
 
