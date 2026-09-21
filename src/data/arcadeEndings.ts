@@ -26,6 +26,11 @@ export const ARCADE_ENDINGS: Record<FighterId, string[]> = {
     '"Great execution," he says, to no one who did any of the execution.',
     'He is already drafting the term sheet for a rematch.',
   ],
+  maul: [
+    'Darth Maul wins the tournament without once explaining what his company actually does.',
+    'The Valley calls it a hostile takeover. He calls it a Tuesday, and the term sheet is already signed in red.',
+    'Somewhere in a parking garage off Sand Hill Road, a second hilt ignites.',
+  ],
   elon: [
     'Elon wins his own tournament, which he insists was the plan all along.',
     'The roadmap updates itself. Victory ships, eventually, on schedule this time.',

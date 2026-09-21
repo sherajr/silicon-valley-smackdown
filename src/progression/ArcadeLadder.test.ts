@@ -21,6 +21,17 @@ describe('buildLadder', () => {
     }
   });
 
+  it('gives every regular fighter a turn as an opponent somewhere in the cast', () => {
+    // With more regulars than ladder slots, a fixed slice of the pool would silently make
+    // whoever sorts last unreachable -- which is exactly what adding a sixth regular did before
+    // buildLadder started rotating the pool.
+    const seen = new Set<FighterId>();
+    for (const id of [...REGULAR_FIGHTER_IDS] as FighterId[]) {
+      for (const stop of buildLadder(id)) seen.add(stop.opponent);
+    }
+    for (const id of REGULAR_FIGHTER_IDS) expect(seen.has(id)).toBe(true);
+  });
+
   it("matches Hunter's authored campaign order", () => {
     const ladder = buildLadder('hunter');
     expect(ladder.map((l) => l.opponent)).toEqual(['al', 'priya', 'kevin', 'chad', 'elon']);

@@ -1,8 +1,10 @@
 # Silicon Valley Smackdown
 
-A funny, original, 2D arcade fighting game built with **TypeScript, Vite, and Phaser**. Six fighters, three stages, a full single-player arcade run against a final boss (Elon), local two-player versus, training mode, pickups, and an original soundtrack — no accounts, no backend.
+A funny, original, 2D arcade fighting game built with **TypeScript, Vite, and Phaser**. Seven fighters, three stages, a full single-player arcade run against a final boss (Elon), local two-player versus, training mode, pickups, and an original soundtrack — no accounts, no backend.
 
-All six fighters use hand-painted pixel-art sprite sheets (idle, walk, attack, and jump/crouch/block/hurt poses) and all three stages use painted backgrounds, shipped under `public/sprites/`. Each fighter keeps their own clothing and accessories — Hunter's grey hoodie and quilted vest, Kevin's navy suit and tie, Priya's blazer and headset — and the cyan/magenta/yellow arcade theme is applied through the UI, menus, HUD and effects rather than by recolouring the characters. A procedural drawing rig ships alongside as a genuine fallback, used only if a sheet is missing or fails to decode. Music remains the original synthesized score, with an optional local music file in Settings.
+Six of the seven fighters use hand-painted pixel-art sprite sheets (idle, walk, attack, and jump/crouch/block/hurt poses) and all three stages use painted backgrounds, shipped under `public/sprites/`. Each fighter keeps their own clothing and accessories — Hunter's grey hoodie and quilted vest, Kevin's navy suit and tie, Priya's blazer and headset — and the cyan/magenta/yellow arcade theme is applied through the UI, menus, HUD and effects rather than by recolouring the characters. A procedural drawing rig ships alongside as a genuine fallback, used only if a sheet is missing or fails to decode. Music remains the original synthesized score, with an optional local music file in Settings.
+
+**Darth Maul is the exception, and is a guest fighter rather than original content.** His sheets are rendered from a third-party rigged 3D model, not painted, so they are build output — see `scripts/art/maul_sprites.py` and the [Art pipeline](#art-pipeline-darth-maul) section. The model is not redistributed with this repo, and the character is Lucasfilm/Disney's; he is fine for a private build but should come out before this is published anywhere.
 
 ## Combat clock and move frames
 
@@ -88,7 +90,7 @@ Both players play on the same keyboard. Bindings are fully remappable in **Setti
 
 Player 2's default is a numeric keypad. If your keyboard has no numpad, switch to the **Laptop Preset** in Settings, which rebinds Player 2 to arrows + **J / K / L / ;**. Bindings use physical key codes (e.g. `Numpad4` vs `Digit4`), so remapping is unambiguous regardless of Num Lock state — the in-game Key Test panel is the fastest way to confirm what your hardware actually sends. Escape always stays reserved for pause/back and cannot be reassigned.
 
-## Move commands (all six fighters share this structure)
+## Move commands (all seven fighters share this structure)
 
 - **Basic** (tap repeatedly): a 3-hit chain. Timing matters — mash too early and it just repeats the first hit.
 - **Forward + Basic**: a heavy, slower attack with more knockback.
@@ -105,13 +107,14 @@ Player 2's default is a numeric keypad. If your keyboard has no numpad, switch t
 | Al | Bottle Service | Happy Hour (low sweep) | You're My Best Friend | Open Bar |
 | Priya | Resume Blast | Let's Connect | Talent Acquisition | Seven-Round Interview |
 | Chad | Cash Burn | Down Round (delayed strike) | Hostile Takeover | Exit Strategy |
+| Darth Maul | Force Shove | Saber Parry (counter stance) | Force Choke | Both Ends of the Blade |
 | Elon | Rocket Reply | Cybertruck Shuffle | Acquisition | To the Moon |
 
 The full move list with current bindings is always available from the pause menu during a match.
 
 ## Game modes
 
-- **Single Player** — *The Last Funding Round*: play as any of the five regular fighters through a five-match arcade ladder, finishing against **Elon** as the final boss. Choose Easy/Normal/Hard before your first match. Losing a match offers Retry Opponent (same ladder position and difficulty) or Main Menu. Beating Elon unlocks him as a playable, rebalanced fighter for Versus and Training, and shows an ending specific to whichever fighter you played (Hunter's is the most developed).
+- **Single Player** — *The Last Funding Round*: play as any of the six regular fighters through a five-match arcade ladder, finishing against **Elon** as the final boss. Choose Easy/Normal/Hard before your first match. Losing a match offers Retry Opponent (same ladder position and difficulty) or Main Menu. Beating Elon unlocks him as a playable, rebalanced fighter for Versus and Training, and shows an ending specific to whichever fighter you played (Hunter's is the most developed).
 - **Two Players** — both players pick a fighter (mirror matches allowed, with a palette swap so P2 is always visually distinct), then choose a stage and whether pickups are on (default) or off. Session win tallies carry across rematches.
 - **Training** — pick a fighter and any stage; set the dummy to Idle, Block, or Fight Back; reset health/meter, refill meter, and toggle a hitbox/hurtbox overlay to study spacing.
 - **How to Play** and **Settings** (audio, screen shake, reduced effects, and full control remapping) are reachable from the main menu at any time.
@@ -141,7 +144,7 @@ Everything gameplay-relevant lives in data/config files, not scattered through t
 - `src/sim/constants.ts` — the global tuning table (health, frame counts, hit-stop, guard, Hype, combo caps, pickup timing).
 - `src/data/characters/*.ts` — one file per fighter: stats, palette, and every move's frame data, hitboxes, and effects, authored with the helpers in `src/data/moveHelpers.ts`.
 - `src/data/stages/index.ts` — stage palettes, signage text, and music track IDs.
-- `src/progression/ArcadeLadder.ts` — the five-match ladder generation (Hunter's is authored; every other fighter's is generated to avoid duplicates/self-matches).
+- `src/progression/ArcadeLadder.ts` — the five-match ladder generation (Hunter's is authored; every other fighter's is generated to avoid duplicates/self-matches, rotating the opponent pool by roster index so every regular gets a turn now that there are more regulars than ladder slots).
 - `src/render/SpriteFactory.ts` — loads the pixel-art sheets from `public/sprites/fighters/` and maps sim states to idle/walk/attack/pose frames.
 - `public/sprites/` — 2×2 sheets per fighter action, stage backgrounds, and FX.
 - `src/render/characterRigs.ts` / `src/render/poses.ts` — the original procedural vector rig (kept as a fallback if a sheet is missing).
@@ -151,11 +154,26 @@ Everything gameplay-relevant lives in data/config files, not scattered through t
 
 The simulation core (`src/sim/CombatSim.ts` and friends) has no rendering dependency and is covered directly by the Vitest suite, so balance changes can be checked with `npm run test` before ever opening a browser.
 
+## Art pipeline (Darth Maul)
+
+Maul's four sheets are the only fighter art in the project that is generated rather than drawn, so treat `public/sprites/fighters/maul/*.png` as build output: to change a pose, edit `POSES` in `scripts/art/maul_sprites.py` and re-run it, rather than editing the PNGs.
+
+```sh
+blender -b "<path>/FIGHTER.blend" --python scripts/art/maul_sprites.py -- \
+    --out .scratch/maul --res 4 --dest public/sprites/fighters/maul --contact
+```
+
+The script isolates the character meshes, rebuilds the model's imported Maya/Arnold materials as plain Principled shaders, lights it for a near-black character, poses the rig's Auto-Rig Pro IK controls into the 16 cells the loader expects, renders each at 4× through a fixed orthographic 3/4 camera, then box-filters to 96×120, adds the house keyline, and packs the 2×2 sheets. `--contact` writes a review grid; `--sheets-only` re-packs from renders already in `--out` without re-rendering. The camera framing is fixed for every pose, which is what keeps the feet on row 115 and the scale consistent with the painted cast.
+
+The source model is **not** in this repo — point `blender` at your own copy of the `.blend`, with its `texture0.PNG`/`texture1.PNG` alongside it. Two properties of that file cost real time to rediscover and are handled in the script with comments at the point of use: the rig ships with `hide_render` on (which silently renders every pose undeformed), and the render pipeline's frame update re-evaluates the rig's 194 drivers, resetting any pose set from a script — so the posed meshes are snapshotted out of the viewport depsgraph and those copies are what get rendered.
+
 ## Credits
 
 Design, code, character art, stage art, effects, the synthesized score, and the sound effects were all built for this project. The bundled default soundtrack, “Celtic Arcade Run” by peaceantz, was generated with Suno for this project and ships under `src/audio/tracks/`. Fighter and stage art ships as pixel-art sheets under `public/sprites/`. Engine: TypeScript + Vite + Phaser. See [Music](#music) above for the one opt-in exception: a listener can point the game at their own local audio file for the current session.
 
 Elon and every other character in this game are fictional, exaggerated arcade caricatures created for comic effect. Any resemblance to real people or companies is parody, not depiction.
+
+Darth Maul is the one exception to "everything here was built for this project": he is a guest fighter built from a third-party rigged 3D model, and the character is the property of Lucasfilm/Disney. Neither the model nor its textures are redistributed here — only the rendered sprite sheets — and nothing about him is original to this project apart from his move data and the render pipeline. He is fine in a private build; remove him before publishing or distributing this game.
 
 ## QA record
 
@@ -170,7 +188,7 @@ Elon and every other character in this game are fictional, exaggerated arcade ca
 
 **Known limitations — read before assuming a claim of "done" covers everything:**
 
-- **Pixel-art sheets are used in live matches** for all six fighters (Hunter, Kevin, Al, Priya, Chad, Elon) plus the three stages. Sheets are 96×120 2×2 grids under `public/sprites/fighters/{id}/{idle,walk,attack,poses}.png`. Pose coverage is deliberately compact and is **not** a full fighting-game atlas: each fighter authors 16 cells (4 idle, 4 walk, 4 attack, and one each of jump/crouch/block/hurt). Every fighter has their own painted art, but moves are distinguished by combining those four attack cells rather than by bespoke per-move frames, and the two-phase reaction sequencing (snap→settle, fall→grounded, stir→rise, jump rise/apex/fall) only has distinct frames to play on the procedural fallback rig — with painted art those states hold their single authored cell. The frame *routing* fixes (a blocked hit showing the guard cell, a guard break showing the recoil cell) apply to both sources.
+- **Pixel-art sheets are used in live matches** for all seven fighters (Hunter, Kevin, Al, Priya, Chad, Darth Maul, Elon) plus the three stages. Maul's are rendered rather than painted (see [Art pipeline](#art-pipeline-darth-maul)) but obey the same cell geometry, ground line and 16-cell budget as the rest. Sheets are 96×120 2×2 grids under `public/sprites/fighters/{id}/{idle,walk,attack,poses}.png`. Pose coverage is deliberately compact and is **not** a full fighting-game atlas: each fighter authors 16 cells (4 idle, 4 walk, 4 attack, and one each of jump/crouch/block/hurt). Every fighter has their own painted art, but moves are distinguished by combining those four attack cells rather than by bespoke per-move frames, and the two-phase reaction sequencing (snap→settle, fall→grounded, stir→rise, jump rise/apex/fall) only has distinct frames to play on the procedural fallback rig — with painted art those states hold their single authored cell. The frame *routing* fixes (a blocked hit showing the guard cell, a guard break showing the recoil cell) apply to both sources.
 - **Extra Hunter reference art is not shipped as sprites.** `art/work/` in the working tree holds 16 transparent 96×120 PNGs that are pixel-identical to cells already in the shipped sheets, plus 15 full-resolution 912×1136 JPEG references (dash, knockdown, wakeup, victory, grab and similar). The JPEGs have no alpha channel and are drawn in a smoother, higher-resolution style than the 96×120 pixel-art sheets, so folding them in would make Hunter visually inconsistent with himself and with the other five fighters. They remain references, not production assets.
 - **The presentation canvas is still the original 480×270 simulation resolution** (upscaled by Phaser's Scale.FIT).
 - **A bundled recording replaces the whole soundtrack, not one stage.** The default track plays on the menus and all three stages; there is no per-stage recorded music. The synthesized score still has distinct menu and per-stage arrangements, reachable via **Settings → Audio → Use Original Score**.
