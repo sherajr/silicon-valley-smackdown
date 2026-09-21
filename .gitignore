@@ -34,3 +34,8 @@ coverage
 
 # Third-party source assets (e.g. the Darth Maul .blend + textures): large, not redistributable.
 downloads/
+
+# Local engine-evaluation scratch (Unreal startup investigation): ~153MB of generated artifacts,
+# including a 118MB CachedAssetRegistry blob, crash minidumps and full-res screenshots. Kept on
+# disk because the Unreal direction is still live, but none of it belongs in the repo.
+diagnostics/
