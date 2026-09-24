@@ -167,6 +167,36 @@ The script isolates the character meshes, rebuilds the model's imported Maya/Arn
 
 The source model is **not** in this repo — point `blender` at your own copy of the `.blend`, with its `texture0.PNG`/`texture1.PNG` alongside it. Two properties of that file cost real time to rediscover and are handled in the script with comments at the point of use: the rig ships with `hide_render` on (which silently renders every pose undeformed), and the render pipeline's frame update re-evaluates the rig's 194 drivers, resetting any pose set from a script — so the posed meshes are snapshotted out of the viewport depsgraph and those copies are what get rendered.
 
+## 3D presentation
+
+The game has a second, real-3D presentation layer alongside the original 2D pixel-art renderer, built with Three.js. It is the default; **Settings → Display → 3D Presentation** is an explicitly selectable toggle back to the original 2D renderer. See `docs/3d-conversion-checklist.md` for full scope, status, and next steps — this section is the short version.
+
+**Status this pass:** Darth Maul is animated and playable in real 3D on Castro Street, including an independently-posed mirror match. The other six fighters and the other two stages do not have 3D assets yet and automatically render in 2D — `FightScene` only activates 3D presentation when *both* fighters and the stage have a registered entry (`has3DModel`/`has3DStage`), and falls back honestly rather than silently claiming 3D succeeded.
+
+**Architecture** (`src/render3d/`):
+- `coordinates.ts` — the one place simulation coordinates (sim units == pixels, `GROUND_Y`-relative) convert to Three.js world space (Y-up, ground at world y=0). Every 3D consumer must go through it.
+- `ModelRegistry.ts` — per-fighter GLB path, scale, base orientation, and the state/move → animation-clip mapping. Adding a fighter's 3D asset means adding one entry here.
+- `FighterModel3D.ts` — loads a GLB once per path (`SkeletonUtils.clone`d per instance so a mirror match never shares skeleton/mixer state), drives its `AnimationMixer` directly from sim-tick-elapsed time (not wall-clock), mirroring `FighterView.ts`'s own hit-stop/pause-aware timing.
+- `Stage3D.ts` — modular 3D geometry per stage (ground, buildings with depth, signage, props), built from the same `StageDef` palette/signs the 2D `StageView` uses. Only `castro_street` has an entry.
+- `GameRenderer3D.ts` — the Three.js scene/camera/renderer and the canvas-compositing integration: a second `<canvas>`, absolutely positioned and explicitly `z-index`ed *below* Phaser's own (now-transparent) canvas, kept pixel-aligned with it via `ResizeObserver` through letterboxing/resize/fullscreen. `render()` is called once per Phaser frame from `FightScene`; there is no second scheduler.
+- `Fight3DPresentation.ts` — composes the above behind the same small surface `FightScene` already used for the 2D `StageView`/`FighterView` pair.
+
+**Exporting a fighter's GLB** (Maul is the only one so far):
+
+```sh
+blender -b "<path>/FIGHTER.blend" --python scripts/art/export_maul_glb.py -- \
+    --out public/models/fighters/maul/maul.glb --report .scratch/maul_glb_report.json
+```
+
+This is a *different* pipeline from `maul_sprites.py` above (which snapshots posed meshes into flat PNGs and explicitly is not a substitute for an animated runtime asset). It bakes real keyframed animation onto the rig's 66 actual deform bones (`bone.use_deform`, not name-guessing) using the same `STANCE`/`POSES` pose data `maul_sprites.py` already has, reused via `importlib` rather than duplicated. Two silent-failure traps specific to this rig are handled and documented in the script:
+
+1. The known `hide_render` trap (handled the same way as the sprite pipeline).
+2. A *second*, different trap this GLB pipeline hit that the sprite pipeline never could: `PoseBone.matrix` assignment computes local channels **ignoring constraints**, so writing a target world matrix straight onto a constrained deform bone (Copy Rotation/Location/Scale from the FK/IK blend chain) gets silently overridden back to near-rest on the next evaluation — every baked clip came out nearly identical on the first attempt, confirmed by decoding the exported glTF's raw keyframe floats, not by trusting the export succeeding. Fixed with a two-pass bake: read every pose's constrained target while constraints are live, then mute constraints once and write the already-captured matrices.
+
+Validate a new export by decoding the GLB's JSON chunk directly (no Blender needed) rather than trusting bone/animation *counts* alone — counts looked fine even while every clip was numerically broken; only decoding actual keyframe values caught it. See the validation snippets embedded in the checklist doc.
+
+**Known scope limits, stated rather than hidden:** the exported skeleton keeps all 331 source bones (only 66 are ever keyframed) instead of a trimmed clean export skeleton; only 8 of Maul's animation states are distinct (`Idle`/`Walk`/`Jump`/`Crouch`/`Block`/`Hurt`/`Basic1`/`Attack`), with most of his eight named moves sharing the one `Attack` clip — matching, not exceeding, how the shipped 2D art already reuses its four attack cells across those same moves; the 3D camera's world-to-screen vertical alignment with the always-2D HUD/effects is an approximation (tuned by eye against a screenshot after a straight-on camera was tried and rejected — it made the ground plane invisible — not derived exactly for the tilted camera actually in use); there is no white damage-flash for 3D hits yet; and per-fighter GPU performance has only been measured via a headless/software-rendered browser, not the target RTX 4070 laptop. Full detail in `docs/3d-conversion-checklist.md`.
+
 ## Credits
 
 Design, code, character art, stage art, effects, the synthesized score, and the sound effects were all built for this project. The bundled default soundtrack, “Celtic Arcade Run” by peaceantz, was generated with Suno for this project and ships under `src/audio/tracks/`. Fighter and stage art ships as pixel-art sheets under `public/sprites/`. Engine: TypeScript + Vite + Phaser. See [Music](#music) above for the one opt-in exception: a listener can point the game at their own local audio file for the current session.
