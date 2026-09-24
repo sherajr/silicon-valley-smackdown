@@ -73,7 +73,7 @@ export class SettingsScene extends Phaser.Scene {
       if (GameContext.audio.hasCustomTrack()) rows.push('clearTrack');
       return rows;
     }
-    if (tab === 'display') return ['screenShake', 'reducedEffects'];
+    if (tab === 'display') return ['screenShake', 'reducedEffects', 'render3D', 'graphicsQuality'];
     if (tab === 'controlsP1') return [...BINDABLE_ACTIONS, 'restore'];
     if (tab === 'controlsP2') return [...BINDABLE_ACTIONS, 'laptopPreset', 'restore'];
     return [];
@@ -106,10 +106,14 @@ export class SettingsScene extends Phaser.Scene {
       this.hintText.setText('Left/Right to change tab, Up/Down to select, Basic to adjust/choose, Block to go back');
     } else if (tab === 'display') {
       const rows = [
-        ['Screen Shake', GameContext.save.screenShake],
-        ['Reduced Effects', GameContext.save.reducedEffects],
+        ['Screen Shake', GameContext.save.screenShake ? 'ON' : 'OFF'],
+        ['Reduced Effects', GameContext.save.reducedEffects ? 'ON' : 'OFF'],
+        // 3D is the default presentation; this is the explicitly selectable compatibility mode
+        // that falls back to the original 2D renderer (see FightScene.create()'s use3D check).
+        ['3D Presentation', GameContext.save.render3D ? 'ON' : 'OFF'],
+        ['Graphics Quality', GameContext.save.graphicsQuality.toUpperCase()],
       ] as const;
-      this.bodyText.setText(rows.map(([label, val], i) => `${i === this.rowIndex ? '> ' : '  '}${label.padEnd(18)} ${val ? 'ON' : 'OFF'}`).join('\n'));
+      this.bodyText.setText(rows.map(([label, val], i) => `${i === this.rowIndex ? '> ' : '  '}${label.padEnd(18)} ${val}`).join('\n'));
       this.hintText.setText('Left/Right to change tab, Up/Down to select, Basic to toggle, Block to go back');
     } else if (tab === 'controlsP1' || tab === 'controlsP2') {
       const slot: PlayerSlot = tab === 'controlsP1' ? 'p1' : 'p2';
@@ -205,7 +209,13 @@ export class SettingsScene extends Phaser.Scene {
       this.refresh();
     } else if (tab === 'display') {
       if (this.rowIndex === 0) GameContext.save.screenShake = !GameContext.save.screenShake;
-      else GameContext.save.reducedEffects = !GameContext.save.reducedEffects;
+      else if (this.rowIndex === 1) GameContext.save.reducedEffects = !GameContext.save.reducedEffects;
+      else if (this.rowIndex === 2) GameContext.save.render3D = !GameContext.save.render3D;
+      else {
+        const order: (typeof GameContext.save.graphicsQuality)[] = ['low', 'medium', 'high'];
+        const next = order[(order.indexOf(GameContext.save.graphicsQuality) + 1) % order.length];
+        GameContext.save.graphicsQuality = next;
+      }
       GameContext.persist();
       this.refresh();
     } else if (tab === 'controlsP1' || tab === 'controlsP2') {

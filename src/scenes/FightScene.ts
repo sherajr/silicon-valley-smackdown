@@ -13,6 +13,10 @@ import { FighterView, neutralImpact, type FighterImpact } from '../render/Fighte
 import { StageView } from '../render/StageView';
 import { HUD } from '../render/HUD';
 import { EffectsView } from '../render/EffectsView';
+import { Fight3DPresentation } from '../render3d/Fight3DPresentation';
+import { has3DModel } from '../render3d/ModelRegistry';
+import { has3DStage } from '../render3d/Stage3D';
+import { graphicsSettingsFor } from '../render3d/GraphicsSettings';
 import { AIController } from '../ai/AIController';
 import { MenuList } from '../ui/MenuList';
 import { labelForBinding } from '../input/bindings';
@@ -48,9 +52,10 @@ export class FightScene extends Phaser.Scene {
   private matchState!: MatchState;
   private p1Def!: CharacterDef;
   private p2Def!: CharacterDef;
-  private p1View!: FighterView;
-  private p2View!: FighterView;
-  private stageView!: StageView;
+  private p1View: FighterView | null = null;
+  private p2View: FighterView | null = null;
+  private stageView: StageView | null = null;
+  private presentation3d: Fight3DPresentation | null = null;
   private hud!: HUD;
   private effects!: EffectsView;
   private ai: AIController | null = null;
@@ -91,12 +96,34 @@ export class FightScene extends Phaser.Scene {
 
     this.matchState = new MatchState(this.p1Def, this.p2Def, { stage, powerupsEnabled }, GameContext.session.seed + this.matchSeedSalt());
 
-    this.stageView = new StageView(this, STAGES[stage]);
-    // Scale comes from the resolved visual source (painted cells and the procedural rig have
-    // different cell sizes), so both render the fighter at the same on-screen height.
-    this.p1View = new FighterView(this, this.p1Def, 150, GROUND_Y);
     const mirror = p1Fighter === p2Fighter && this.mode !== 'arcade';
-    this.p2View = new FighterView(this, this.p2Def, 330, GROUND_Y, mirror ? { tintOverride: 0x99c2ff } : undefined);
+    const use3D =
+      GameContext.save.render3D &&
+      has3DModel(this.p1Def.id) &&
+      has3DModel(this.p2Def.id) &&
+      has3DStage(stage);
+
+    if (use3D) {
+      // Real 3D presentation for this match: both fighters and the stage have a registered
+      // model, so the legacy 2D StageView/FighterView are not constructed at all for this match
+      // (see cleanup()/resetViewReactions()/renderFrame() for the corresponding null-guards).
+      this.presentation3d = new Fight3DPresentation(
+        this.game.canvas,
+        graphicsSettingsFor(GameContext.save.graphicsQuality),
+        STAGES[stage],
+        this.p1Def,
+        this.p2Def,
+        mirror ? 0x99c2ff : undefined,
+      );
+    } else {
+      // Falls back to the 2D renderer honestly: either 3D is disabled in Settings, or this
+      // fighter/stage combination has no registered 3D asset yet (see ModelRegistry/Stage3D).
+      this.stageView = new StageView(this, STAGES[stage]);
+      // Scale comes from the resolved visual source (painted cells and the procedural rig have
+      // different cell sizes), so both render the fighter at the same on-screen height.
+      this.p1View = new FighterView(this, this.p1Def, 150, GROUND_Y);
+      this.p2View = new FighterView(this, this.p2Def, 330, GROUND_Y, mirror ? { tintOverride: 0x99c2ff } : undefined);
+    }
 
     const p1Label = 'P1';
     const p2Label = this.mode === 'versus' ? 'P2' : this.mode === 'training' ? 'CPU' : 'CPU';
@@ -135,8 +162,9 @@ export class FightScene extends Phaser.Scene {
 
   /** Clears held reaction poses and pending impact edges so nothing carries into a fresh round. */
   private resetViewReactions(): void {
-    this.p1View.resetReactionState();
-    this.p2View.resetReactionState();
+    this.p1View?.resetReactionState();
+    this.p2View?.resetReactionState();
+    this.presentation3d?.resetReactionState();
     this.p1Impact = neutralImpact();
     this.p2Impact = neutralImpact();
   }
@@ -149,9 +177,10 @@ export class FightScene extends Phaser.Scene {
   private cleanup(): void {
     this.unsubFocus?.();
     GameContext.audio.setIntensity(1);
-    this.stageView.destroy();
-    this.p1View.destroy();
-    this.p2View.destroy();
+    this.stageView?.destroy();
+    this.p1View?.destroy();
+    this.p2View?.destroy();
+    this.presentation3d?.dispose();
     this.hud.destroy();
     this.effects.destroy();
   }
@@ -286,7 +315,8 @@ export class FightScene extends Phaser.Scene {
           break;
         case 'crunchModeEntered':
           this.crunchNotified = true;
-          this.stageView.setCrunchLighting(true);
+          this.stageView?.setCrunchLighting(true);
+          this.presentation3d?.setCrunchLighting(true);
           GameContext.audio.setIntensity(1.08);
           this.hud.showCallout('CRUNCH MODE');
           break;
@@ -308,8 +338,12 @@ export class FightScene extends Phaser.Scene {
 
   private renderFrame(delta: number): void {
     const sim = this.matchState.sim;
-    this.p1View.update(sim.p1, ARENA_OFFSET_X, this.p1Impact, delta, sim.frameCount);
-    this.p2View.update(sim.p2, ARENA_OFFSET_X, this.p2Impact, delta, sim.frameCount);
+    if (this.presentation3d) {
+      this.presentation3d.update(sim.p1, sim.p2, this.p1Impact, this.p2Impact, sim.frameCount);
+    } else {
+      this.p1View!.update(sim.p1, ARENA_OFFSET_X, this.p1Impact, delta, sim.frameCount);
+      this.p2View!.update(sim.p2, ARENA_OFFSET_X, this.p2Impact, delta, sim.frameCount);
+    }
     this.p1Impact = neutralImpact();
     this.p2Impact = neutralImpact();
     this.effects.updateProjectiles(sim.projectiles);
@@ -354,7 +388,8 @@ export class FightScene extends Phaser.Scene {
     else if (result.reason === 'timeout') text = `TIME UP - ${result.winner.toUpperCase()} WINS`;
     else text = `K.O. - ${result.winner.toUpperCase()} WINS`;
     this.hud.showRoundBanner(text, 1400);
-    this.stageView.setCrunchLighting(false);
+    this.stageView?.setCrunchLighting(false);
+    this.presentation3d?.setCrunchLighting(false);
 
     this.time.delayedCall(1900, () => {
       if (this.matchState.isMatchOver()) {

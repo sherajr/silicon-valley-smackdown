@@ -1,5 +1,6 @@
 import { DEFAULT_P1_BINDINGS, DEFAULT_P2_BINDINGS, type PlayerBindings } from '../input/bindings';
 import type { Difficulty } from '../sim/types';
+import type { GraphicsQuality } from '../render3d/GraphicsSettings';
 
 export interface VolumeSettings {
   master: number;
@@ -15,6 +16,13 @@ export interface SaveData {
   screenShake: boolean;
   reducedEffects: boolean;
   lastDifficulty: Difficulty;
+  /** Explicitly selectable: 3D presentation is the default, with the original 2D renderer kept
+   * as an opt-out compatibility mode (see docs/3d-conversion-checklist.md). Added after v1
+   * shipped, so it is intentionally left out of isValidSave's required-field checks below --
+   * an older save missing this key must still load, not be silently wiped. loadSaveData()
+   * backfills it (and graphicsQuality) from defaultSaveData() when absent. */
+  render3D: boolean;
+  graphicsQuality: GraphicsQuality;
 }
 
 const STORAGE_KEY = 'svs.save.v1';
@@ -29,6 +37,8 @@ export function defaultSaveData(): SaveData {
     screenShake: true,
     reducedEffects: false,
     lastDifficulty: 'normal',
+    render3D: true,
+    graphicsQuality: 'medium',
   };
 }
 
@@ -62,7 +72,10 @@ export function loadSaveData(): SaveData {
     if (!raw) return defaultSaveData();
     const parsed: unknown = JSON.parse(raw);
     if (!isValidSave(parsed)) return defaultSaveData();
-    return parsed;
+    // Spread parsed over the defaults (not the reverse) so any field a newer save genuinely sets
+    // still wins, while a field an older save never had (e.g. render3D, added after v1 shipped)
+    // is backfilled instead of left undefined.
+    return { ...defaultSaveData(), ...parsed };
   } catch {
     return defaultSaveData();
   }

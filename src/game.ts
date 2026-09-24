@@ -20,7 +20,11 @@ const config: Phaser.Types.Core.GameConfig = {
   width: BASE_WIDTH,
   height: BASE_HEIGHT,
   parent: 'app',
-  backgroundColor: '#100a30',
+  // Transparent so the 3D canvas (inserted behind Phaser's own canvas -- see
+  // src/render3d/GameRenderer3D.ts) shows through wherever Phaser doesn't paint over it. Every
+  // non-3D scene is unaffected: #app's own CSS background (index.html) is the same #100a30, and
+  // 2D FightScene still paints an opaque StageView covering the whole canvas as before.
+  transparent: true,
   pixelArt: true,
   antialias: false,
   roundPixels: true,
@@ -61,4 +65,8 @@ if (new URLSearchParams(location.search).get('e2e') === '1') {
   // packaged desktop app in particular resolves the track through smackdown:// with a different
   // base than the browser build, and that is only worth asserting if playback can be read back.
   (window as unknown as { __e2eAudio?: unknown }).__e2eAudio = GameContext.audio;
+  // Lets tests jump straight into a specific match (fighters/stage/mode) instead of driving menu
+  // navigation, e.g. for the 3D presentation compositing/mirror-match checks in
+  // tests/e2e/render3d-compositing.spec.ts. Inert unless ?e2e=1, same as the hooks above.
+  (window as unknown as { __e2eContext?: unknown }).__e2eContext = GameContext;
 }
