@@ -1,0 +1,2 @@
+Based on sherajr/silicon-valley-smackdown, main commit 595f6d4.
+Arena Edition implements an independent 3D platform-fighter mode.

@@ -40,7 +40,7 @@ function readAudio(page: Page) {
 test('the bundled soundtrack actually plays, and loops, after a user gesture', async ({ page }) => {
   await instrumentAudio(page);
   const errors = collectErrors(page);
-  await page.goto('/?e2e=1', { waitUntil: 'networkidle' });
+  await page.goto('/?classic=1&e2e=1', { waitUntil: 'networkidle' });
   await page.waitForTimeout(600);
 
   // A real user gesture is what satisfies the browser's autoplay policy.
@@ -67,7 +67,7 @@ test('the bundled soundtrack actually plays, and loops, after a user gesture', a
 test('moving between scenes keeps one soundtrack playing rather than stacking copies', async ({ page }) => {
   await instrumentAudio(page);
   const errors = collectErrors(page);
-  await page.goto('/?e2e=1', { waitUntil: 'networkidle' });
+  await page.goto('/?classic=1&e2e=1', { waitUntil: 'networkidle' });
   await page.waitForTimeout(600);
 
   await tap(page, 'KeyV'); // Title -> Main Menu

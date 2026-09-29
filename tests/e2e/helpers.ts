@@ -37,7 +37,7 @@ export function collectErrors(page: Page): ConsoleErrors {
 
 /** Navigates to the game with the e2e test hook enabled (see src/game.ts). */
 export async function gotoGame(page: Page): Promise<void> {
-  await page.goto('/?e2e=1', { waitUntil: 'networkidle' });
+  await page.goto('/?classic=1&e2e=1', { waitUntil: 'networkidle' });
   await page.waitForTimeout(600);
 }
 

@@ -41,7 +41,7 @@ async function createWindow() {
   window.on('closed', () => { window = null; });
   // SVS_E2E lets the desktop smoke test enable the same test-only hook the web e2e suite uses
   // (see src/game.ts), without ever re-navigating this window after the initial load.
-  const query = process.env.SVS_E2E === '1' ? '?e2e=1' : '';
+  const query = process.env.SVS_E2E === '1' ? '?classic=1&e2e=1' : '';
   await window.loadURL(`${GAME_ORIGIN}/${query}`);
 }
 

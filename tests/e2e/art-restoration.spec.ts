@@ -17,7 +17,7 @@ const KEVIN_MAX_HEALTH = 210;
 
 /** Boots straight into a fight via the documented skip hook, then waits for the sim to be live. */
 async function startFight(page: Page, p1 = 'hunter', p2 = 'kevin', stage = 'castro_street'): Promise<void> {
-  await page.goto(`/?e2e=1&skip=fight&p1=${p1}&p2=${p2}&stage=${stage}`, { waitUntil: 'networkidle' });
+  await page.goto(`/?classic=1&e2e=1&skip=fight&p1=${p1}&p2=${p2}&stage=${stage}`, { waitUntil: 'networkidle' });
   await expect.poll(() => page.evaluate(() => !!(window as any).__e2eGame?.scene.isActive('Fight')), { timeout: 15_000 }).toBe(true);
   // The 30-frame intro must finish, or the fighters are still in 'intro' and cannot act.
   await expect.poll(() => fightState(page).then((s) => s.p1.state !== 'intro' && s.p2.state !== 'intro'), { timeout: 10_000 }).toBe(true);
@@ -412,7 +412,7 @@ test('hit-stop freezes move progress while the round clock keeps counting down',
 });
 
 test('the pause move list opens, pages, and closes without leaving a stale overlay or resuming combat', async ({ page }) => {
-  await page.goto('/?e2e=1&skip=fight&p1=hunter&p2=kevin&stage=castro_street', { waitUntil: 'networkidle' });
+  await page.goto('/?classic=1&e2e=1&skip=fight&p1=hunter&p2=kevin&stage=castro_street', { waitUntil: 'networkidle' });
   await expect.poll(() => page.evaluate(() => !!(window as any).__e2eGame?.scene.isActive('Fight')), { timeout: 15_000 }).toBe(true);
   await page.waitForTimeout(500);
 

@@ -3,7 +3,7 @@ import { collectErrors } from './helpers';
 
 test('clock pauses, expires, and resets; arcade screens render cleanly', async ({ page }) => {
   const errors = collectErrors(page);
-  await page.goto('/?e2e=1&skip=fight');
+  await page.goto('/?classic=1&e2e=1&skip=fight');
   await page.waitForFunction(() => (window as any).__e2eGame?.scene.isActive('Fight'));
   await page.waitForTimeout(900);
   const before = await page.evaluate(() => {
@@ -38,12 +38,12 @@ test('clock pauses, expires, and resets; arcade screens render cleanly', async (
   await page.waitForTimeout(1100);
   await page.screenshot({path:'.scratch/arcade-fight.png'});
   for (const stage of ['sand_hill_road', 'palo_alto']) {
-    await page.goto('/?e2e=1&skip=fight&stage=' + stage + '&p1=al&p2=chad');
+    await page.goto('/?classic=1&e2e=1&skip=fight&stage=' + stage + '&p1=al&p2=chad');
     await page.waitForFunction(() => (window as any).__e2eGame?.scene.isActive('Fight'));
     await page.waitForTimeout(1400);
     await page.screenshot({path:'.scratch/arcade-' + stage + '.png'});
   }
-  await page.goto('/?e2e=1');
+  await page.goto('/?classic=1&e2e=1');
   await page.waitForFunction(() => (window as any).__e2eGame?.scene.isActive('Title'));
   await page.screenshot({path:'.scratch/arcade-title.png'});
   await page.mouse.click(240, 135);
