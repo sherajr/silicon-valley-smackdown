@@ -1,7 +1,7 @@
 {
   "name": "silicon-valley-smackdown",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "description": "An offline arcade fighting game set in Silicon Valley",
   "author": "Sheraj Ragoobeer",
@@ -22,7 +22,10 @@
     "dist:win": "npm run build:desktop && electron-builder --win --x64 --publish never",
     "dist:mac": "npm run build:desktop && electron-builder --mac --publish never",
     "test:desktop:unit": "node --test tests/desktop/assets.test.cjs",
-    "test:desktop": "playwright test --config playwright.desktop.config.ts"
+    "test:desktop": "playwright test --config playwright.desktop.config.ts",
+    "build:portable": "npm run typecheck && node scripts/build-portable.mjs",
+    "package:zip": "npm run build:portable && python3 scripts/package-arena.py",
+    "test:arena": "playwright test --config playwright.arena.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

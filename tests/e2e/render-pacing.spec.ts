@@ -14,7 +14,7 @@ const REFRESH_RATES = [30, 60, 120, 144];
 const ELAPSED_MS = 2000;
 
 async function bootFight(page: Page): Promise<void> {
-  await page.goto('/?e2e=1&skip=fight&p1=hunter&p2=kevin&stage=castro_street', { waitUntil: 'networkidle' });
+  await page.goto('/?classic=1&e2e=1&skip=fight&p1=hunter&p2=kevin&stage=castro_street', { waitUntil: 'networkidle' });
   await expect.poll(() => page.evaluate(() => !!(window as any).__e2eGame?.scene.isActive('Fight')), { timeout: 15_000 }).toBe(true);
   // Stop the scene's own update loop so the scripted deltas below are the only thing driving it.
   await page.evaluate(() => (window as any).__e2eGame.scene.pause('Fight'));
@@ -90,7 +90,7 @@ test('a stalled display cannot be made up with unbounded catch-up steps', async 
 });
 
 test('resuming from pause does not replay the paused time as a burst of simulation', async ({ page }) => {
-  await page.goto('/?e2e=1&skip=fight&p1=hunter&p2=kevin&stage=castro_street', { waitUntil: 'networkidle' });
+  await page.goto('/?classic=1&e2e=1&skip=fight&p1=hunter&p2=kevin&stage=castro_street', { waitUntil: 'networkidle' });
   await expect.poll(() => page.evaluate(() => !!(window as any).__e2eGame?.scene.isActive('Fight')), { timeout: 15_000 }).toBe(true);
   await page.waitForTimeout(400);
 

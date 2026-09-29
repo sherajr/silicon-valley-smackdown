@@ -1,0 +1,82 @@
+SILICON VALLEY SMACKDOWN — ARENA EDITION
+
+PLAY IN THREE STEPS
+1. Extract the ZIP (Windows: right-click > Extract All).
+2. Open PLAY.html in Chrome, Edge, or Firefox.
+3. Choose ENTER THE ARENA, select your fighters and mode, and start.
+
+No installation, Node.js, local server, account, ROM, or internet connection is needed.
+PLAY.html contains the complete Arena game, including 3D models and synthesized audio.
+Use a desktop/laptop browser with WebGL 2 and hardware acceleration enabled.
+This is a portable browser game, not a native Windows .exe installer.
+
+HOW TO WIN
+Build your opponent's damage, then knock them beyond the arena boundaries.
+Higher damage means stronger knockback. Each fighter has three stocks.
+Last fighter with stocks wins. A timeout ranks stocks first, then lower damage.
+A tie starts sudden death at 150% with one stock.
+
+CONTROLS                   PLAYER 1               PLAYER 2
+Move                       A / D                  Left / Right arrows
+Jump / double jump         W or Space             Up arrow
+Basic / air attack         V                      J or 4
+Strong directional attack  Direction + V          Direction + J
+Signature projectile       B                      K or 5
+Rising recovery            Hold W + tap B         Hold Up + tap K
+Down special               S + B                  Down + K
+Shield                     N                      L or 6
+Dodge roll                 N + A or D             L + Left or Right
+Grab (beats shield)        M                      ; or +
+Drop through / fast fall   Hold S                 Hold Down
+Pause / resume             Escape
+Fullscreen                 F (or your browser's fullscreen command)
+Mute                       O
+
+Jump twice, then use up + special to get back to the stage. Recovery refreshes
+when you land. Steer toward a nearby ledge to pull yourself up. A shield loses
+strength while held and can break. Coffee heals 22%; GPUs boost attacks for 8s.
+
+CONTROLLERS
+Standard browser-mapped controllers are supported. Press a button to activate.
+The first two detected controllers control players 1 and 2. Xbox-style names:
+left stick or D-pad = move; A = jump; X = attack; B = special; Y = grab;
+LT/LB/RT = shield; up + B = recovery; Start = pause.
+Use the keyboard/mouse to navigate menus. Physical controller hardware was not
+available in the build environment; keyboard controls were browser-tested.
+
+MODES
+Quick match: fight a CPU on any arena.
+Local versus: two people on the same keyboard or two controllers.
+Arcade: climb the roster to the Elon final match.
+Training: unlimited stocks, no timer, stationary dummy. P2 keys control the dummy.
+Pause in Training for DUMMY +50% to practice high-damage launches.
+
+FIGHTERS
+Hunter: The Tech Bro / iPad Yeet / Elevator Pitch recovery
+Kevin: The Lawyer / Briefcase Briefing / Appeal to the Court recovery
+Al: The Drunkard / Bottle Service / Last Call Lift recovery
+Priya: The Recruiter / Resume Blast / Career Ladder recovery
+Chad: The Venture Capitalist / Cash Burn / Bridge Funding recovery
+Elon: The Founder / Rocket Reply / To the Moon recovery
+
+ARENAS
+Castro Street Coffee Clash, Sand Hill Road Showdown, Palo Alto Launch Night.
+All six fighters and all three arenas are genuinely rendered as 3D meshes.
+Combat is played on a horizontal plane, as in a platform fighter.
+
+PERFORMANCE / TROUBLESHOOTING
+For slower integrated graphics, uncheck High quality shadows in match setup.
+If the screen reports WebGL unavailable, enable browser hardware acceleration.
+Click into the game to enable audio. Browser/OS autoplay rules may delay audio.
+The game pauses when you switch windows, so you do not lose a stock while away.
+Small/private-browser storage restrictions only affect remembering settings.
+The code targets 60 simulation ticks/second; native RTX 4070 performance has not
+been measured here. Artwork is original stylized procedural 3D, not AAA models.
+
+EDITING THE GAME
+Source/ contains the editable TypeScript project and the previous Classic game.
+See Source/README.md and Source/docs/arena-edition.md.
+Node.js 22.12+ is required only for editing/building, not for playing PLAY.html.
+Classic is available when running the source with ?classic=1 in the URL.
+The portable PLAY.html focuses on the six original Silicon Valley characters.
+It uses no Nintendo ROM, Nintendo assets, or BattleShip code.
