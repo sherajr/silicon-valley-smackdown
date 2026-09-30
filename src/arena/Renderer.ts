@@ -2,10 +2,21 @@ import * as T from 'three';
 import { FighterRig, makeProp } from './FighterRig';
 import { ArenaStage } from './Stage';
 import { FIGHTER_ACCENTS } from './data';
-import { newFighter } from './Simulation';
+import { activeBoxes, hurtboxOf, newFighter } from './Simulation';
 import type { ArenaSim, GameEvent } from './Simulation';
 
 interface Particle { mesh: T.Mesh; vx: number; vy: number; vz: number; life: number; max: number; ring: boolean }
+/** Burst look per simulation event: colour, particle count, whether a shock ring shows, camera shake and launch speed. */
+const FX: Record<string, { color: string; count: number; ring: boolean; shake?: number; speed?: number }> = {
+  hit: { color: '#fff5c8', count: 18, ring: true, shake: 0.12, speed: 8 }, ko: { color: '#fdbd70', count: 34, ring: true, shake: 0.34, speed: 8 },
+  block: { color: '#66bcff', count: 6, ring: true }, pickup: { color: '#adffc2', count: 6, ring: false },
+  jump: { color: '#fff5c8', count: 6, ring: false }, recovery: { color: '#fff5c8', count: 6, ring: false }, land: { color: '#fff5c8', count: 6, ring: false },
+  catch: { color: '#ffd27a', count: 10, ring: true, shake: 0.05 }, tech: { color: '#7dffea', count: 14, ring: true },
+  pummel: { color: '#ffe9a8', count: 5, ring: false }, throwBreak: { color: '#c9d6ff', count: 12, ring: true },
+  counter: { color: '#ffd45c', count: 26, ring: true, shake: 0.2, speed: 9 }, armor: { color: '#8fb4e8', count: 8, ring: true },
+  impact: { color: '#ffb468', count: 26, ring: true, shake: 0.26, speed: 9 }, bounce: { color: '#fff5c8', count: 4, ring: false },
+  shotBreak: { color: '#ffb0a0', count: 8, ring: false }, fizzle: { color: '#9aa7ad', count: 4, ring: false },
+};
 export class ArenaRenderer {
   renderer: T.WebGLRenderer;
   scene = new T.Scene();
@@ -21,6 +32,11 @@ export class ArenaRenderer {
   private shadowGeo = new T.CircleGeometry(0.7, 24);
   private cameraTarget = new T.Vector3(0, 2.7, 0);
   private shake = 0;
+  private debugOn = false;
+  private debug = new T.Group();
+  private debugPool: T.LineSegments[] = [];
+  private boxEdges = new T.EdgesGeometry(new T.BoxGeometry(1, 1, 1));
+  private boxMats = { hurt: new T.LineBasicMaterial({ color: '#57ebd6' }), hurtSecond: new T.LineBasicMaterial({ color: '#ffa577' }), hit: new T.LineBasicMaterial({ color: '#ff5a5a' }), grab: new T.LineBasicMaterial({ color: '#ffd27a' }), shot: new T.LineBasicMaterial({ color: '#ff7bd5' }) };
   private width = 1;
   private height = 1;
   private high = true;
@@ -40,6 +56,7 @@ export class ArenaRenderer {
     const rim = new T.DirectionalLight('#88bdff', 1.8); rim.position.set(5, 7, -7); this.scene.add(rim);
     this.stage = new ArenaStage(0); this.scene.add(this.stage.root);
     this.camera.position.set(9, 7, 21); this.camera.lookAt(0, 2.7, 0);
+    this.debug.visible = false; this.scene.add(this.debug);
     this.resize();
   }
   resize() {
@@ -77,25 +94,41 @@ export class ArenaRenderer {
     this.resize(); return portraits;
   }
   event(e: GameEvent) {
-    if (e.type === 'hit' || e.type === 'block' || e.type === 'ko' || e.type === 'pickup' || e.type === 'jump' || e.type === 'recovery' || e.type === 'land') {
-      const impact = e.type === 'hit' || e.type === 'ko';
-      const color = e.type === 'block' ? '#66bcff' : e.type === 'pickup' ? '#adffc2' : e.type === 'ko' ? '#fdbd70' : '#fff5c8';
-      const count = e.type === 'ko' ? 34 : impact ? 18 : 6;
-      const x = T.MathUtils.clamp(e.x, -18, 18), y = T.MathUtils.clamp(e.y, -4, 13);
-      if (impact) this.shake = e.type === 'ko' ? 0.34 : 0.12;
-      for (let i = 0; i < count; i++) {
-        if (this.particles.length > 140) break;
-        const mat = new T.MeshBasicMaterial({ color, transparent: true, depthWrite: false });
-        const mesh = new T.Mesh(this.particleGeo, mat); mesh.position.set(x, y, 0.35); mesh.scale.set(1 + Math.random() * 2, 1, 1);
-        const angle = Math.random() * Math.PI * 2, speed = 2 + Math.random() * (impact ? 8 : 2);
-        this.scene.add(mesh); this.particles.push({ mesh, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, vz: (Math.random() - 0.5) * 4, life: 0.4, max: 0.4, ring: false });
-      }
-      if (impact || e.type === 'block') {
-        const ring = new T.Mesh(this.ringGeo, new T.MeshBasicMaterial({ color, transparent: true, side: T.DoubleSide, depthWrite: false }));
-        ring.position.set(x, y, 0.5); this.scene.add(ring);
-        this.particles.push({ mesh: ring, vx: 0, vy: 0, vz: 0, life: 0.25, max: 0.25, ring: true });
-      }
+    const fx = FX[e.type];
+    if (!fx) return;
+    const impact = !!fx.speed, x = T.MathUtils.clamp(e.x, -18, 18), y = T.MathUtils.clamp(e.y, -4, 13);
+    if (fx.shake) this.shake = Math.max(this.shake, fx.shake);
+    for (let i = 0; i < fx.count; i++) {
+      if (this.particles.length > 140) break;
+      const mat = new T.MeshBasicMaterial({ color: fx.color, transparent: true, depthWrite: false });
+      const mesh = new T.Mesh(this.particleGeo, mat); mesh.position.set(x, y, 0.35); mesh.scale.set(1 + Math.random() * 2, 1, 1);
+      const angle = Math.random() * Math.PI * 2, speed = 2 + Math.random() * (impact ? (fx.speed ?? 8) : 2);
+      this.scene.add(mesh); this.particles.push({ mesh, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, vz: (Math.random() - 0.5) * 4, life: 0.4, max: 0.4, ring: false });
     }
+    if (fx.ring) {
+      const ring = new T.Mesh(this.ringGeo, new T.MeshBasicMaterial({ color: fx.color, transparent: true, side: T.DoubleSide, depthWrite: false }));
+      ring.position.set(x, y, 0.5); this.scene.add(ring);
+      this.particles.push({ mesh: ring, vx: 0, vy: 0, vz: 0, life: 0.25, max: 0.25, ring: true });
+    }
+  }
+  /** Training aid: outline hurtboxes (aqua/orange), active hit volumes (red), catch volumes (yellow) and shots (magenta). */
+  setDebug(on: boolean) { this.debugOn = on; this.debug.visible = on; }
+  private drawBoxes(sim: ArenaSim) {
+    let used = 0;
+    const draw = (r: { x0: number; x1: number; y0: number; y1: number }, mat: T.LineBasicMaterial) => {
+      let line = this.debugPool[used];
+      if (!line) { line = new T.LineSegments(this.boxEdges, mat); this.debug.add(line); this.debugPool.push(line); }
+      used++; line.material = mat; line.visible = true;
+      line.position.set((r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2, 0.7); line.scale.set(Math.max(0.02, r.x1 - r.x0), Math.max(0.02, r.y1 - r.y0), 0.06);
+    };
+    for (const f of sim.fighters) {
+      if (f.respawn || f.stocks <= 0) continue;
+      draw(hurtboxOf(f), f.slot ? this.boxMats.hurtSecond : this.boxMats.hurt);
+      const a = f.attack;
+      for (const r of activeBoxes(f)) draw(r, a?.def.grab ? this.boxMats.grab : this.boxMats.hit);
+    }
+    for (const s of sim.shots) draw({ x0: s.x - s.def.rx, x1: s.x + s.def.rx, y0: s.y - s.def.ry, y1: s.y + s.def.ry }, this.boxMats.shot);
+    for (let i = used; i < this.debugPool.length; i++) this.debugPool[i].visible = false;
   }
   render(sim: ArenaSim, dt: number, time: number, menu: boolean, alpha: number, paused: boolean) {
     const active = sim.fighters.filter(f => !f.respawn && f.stocks > 0);
@@ -117,6 +150,7 @@ export class ArenaRenderer {
     this.camera.lookAt(this.cameraTarget);
     if (this.shake && !paused) { this.camera.position.x += (Math.random() - 0.5) * this.shake; this.camera.position.y += (Math.random() - 0.5) * this.shake; this.shake *= Math.exp(-dt * 13); }
     this.stage.update(time);
+    if (this.debugOn) this.drawBoxes(sim);
     for (let i = 0; i < this.rigs.length; i++) {
       const f = sim.fighters[i]; this.rigs[i].pose(f, time, alpha);
       let floor: number | null = null;
@@ -129,7 +163,9 @@ export class ArenaRenderer {
     const live = new Set<number>();
     for (const s of sim.shots) {
       live.add(s.id);
-      let group = this.dynamic.get(s.id); if (!group) { group = makeProp(s.kind); this.dynamic.set(s.id, group); this.scene.add(group); }
+      let group = this.dynamic.get(s.id);
+      // A projectile prop is scaled to its hit volume, so a wide Cash Burn looks wide and a narrow iPad looks narrow.
+      if (!group) { group = makeProp(s.kind); group.scale.setScalar(T.MathUtils.clamp(Math.max(s.def.rx, s.def.ry) / 0.4, 0.8, 1.8)); this.dynamic.set(s.id, group); this.scene.add(group); }
       group.position.set(s.x, s.y, 0.1); group.rotation.set(time * 4, time * 7, s.kind === 5 ? -Math.sign(s.vx) * Math.PI / 2 : time * 4);
     }
     for (const p of sim.pickups) {

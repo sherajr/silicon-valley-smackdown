@@ -31,10 +31,12 @@ describe('Arena platform fighter', () => {
     light.hit(light.fighters[0], light.fighters[1], 20, 0.2, 'heavy'); heavy.hit(heavy.fighters[0], heavy.fighters[1], 20, 0.2, 'heavy');
     expect(heavy.fighters[1].vx).toBeLessThan(light.fighters[1].vx);
   });
-  it('shield blocks damage while grabs defeat it', () => {
+  it('shield blocks strikes, while a grab catches through it without dealing damage yet', () => {
     const s = setup(), [a, b] = s.fighters; b.guarding = true;
     s.hit(a, b, 10, 0.2, 'heavy'); expect(b.damage).toBe(0); expect(b.shield).toBe(76);
-    s.hit(a, b, 12, 0.2, 'grab'); expect(b.damage).toBe(12); expect(b.guarding).toBe(false);
+    a.x = 0; b.x = 1.1; b.guarding = false;
+    advance(s, 1, { grab: true }); advance(s, 12, {}, { shield: true });
+    expect(b.heldBy).toBe(0); expect(a.hold).not.toBeNull(); expect(b.damage).toBe(0);
   });
   it('overusing a shield breaks it and causes punishable stun', () => {
     const s = setup(); s.fighters[0].shield = 0.1; advance(s, 1, { shield: true });
@@ -92,7 +94,8 @@ describe('Arena platform fighter', () => {
     advance(s, 5, { x: 1 }); expect(s.fighters[0].x).toBe(-4); expect(s.fighters[0].attack!.age).toBe(0); expect(s.remaining).toBe(remaining - 5);
   });
   it('simultaneous active attacks trade instead of favoring the first player', () => {
-    const s = setup(), [a, b] = s.fighters; a.x = 0; b.x = 1.1;
+    // A mirror match: identical timing on both sides, so a trade is the only fair outcome.
+    const s = setup({ fighters: [0, 0] }), [a, b] = s.fighters; a.x = 0; b.x = 1.1;
     advance(s, 1, { attack: true }, { attack: true }); advance(s, 5);
     expect(a.damage).toBe(5); expect(b.damage).toBe(5);
   });

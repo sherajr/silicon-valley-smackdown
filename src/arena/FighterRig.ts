@@ -137,6 +137,10 @@ export class FighterRig {
     const m = new T.Mesh(geometry, this.material(color)); m.position.set(x, y, z); m.scale.set(sx, sy, sz); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m;
   }
   private part(...args: Parameters<FighterRig['mesh']>) { return this.mesh(...args); }
+  /** Sets an arm's shoulder and elbow angles (negative x lifts the arm forward and up). */
+  private arm(a: Limb, shoulder: number, elbow: number, out = 0) { a.upper.rotation.x = shoulder; a.lower.rotation.x = elbow; a.upper.rotation.z = out; }
+  private leg(l: Limb, hip: number, knee: number) { l.upper.rotation.x = hip; l.lower.rotation.x = knee; }
+
   pose(f: Fighter, time: number, alpha = 1) {
     this.root.visible = f.respawn === 0 && f.stocks > 0;
     this.root.position.set(T.MathUtils.lerp(f.prevX, f.x, alpha), T.MathUtils.lerp(f.prevY, f.y, alpha), 0);
@@ -144,6 +148,8 @@ export class FighterRig {
     this.body.rotation.set(0, f.facing * 1.15, 0);
     this.body.position.y = Math.sin(time * 3.8) * 0.018;
     this.torso.rotation.set(0, 0, 0); this.head.rotation.set(0, 0.1 * Math.sin(time), 0);
+    // The body is turned three-quarters to the camera, so which arm is nearer depends on facing.
+    const near = this.arms[f.facing > 0 ? 0 : 1], far = this.arms[f.facing > 0 ? 1 : 0];
     for (let i = 0; i < 2; i++) {
       const arm = this.arms[i], leg = this.legs[i];
       arm.upper.rotation.set(-0.48 - i * 0.25, 0, (i ? -1 : 1) * 0.13);
@@ -163,24 +169,9 @@ export class FighterRig {
       this.legs[1].upper.rotation.x = 0.3; this.legs[1].lower.rotation.x = 0.45;
       this.arms[0].upper.rotation.x = -0.7; this.arms[1].upper.rotation.x = -1.1;
     }
-    if (f.attack) {
-      const a = f.attack;
-      const p = a.age < a.start ? a.age / a.start : Math.max(0, 1 - (a.age - a.start - a.active) / (a.duration - a.start - a.active));
-      const strike = Math.sin(clamp(p, 0, 1) * Math.PI / 2);
-      this.torso.rotation.y = -0.30 + strike * 0.65;
-      this.arms[1].upper.rotation.x = -0.6 - strike * 1.0; this.arms[1].lower.rotation.x = -0.75 + strike * 0.73;
-      if (a.kind === 'heavy' || a.kind === 'aerial' || a.kind === 'sweep') {
-        this.legs[1].upper.rotation.x = -strike * (a.kind === 'sweep' ? 1 : 1.55); this.legs[1].lower.rotation.x = 0.10;
-        this.torso.rotation.x = -strike * 0.2;
-        if (a.kind === 'sweep') { this.body.position.y -= 0.26; this.legs[0].lower.rotation.x = 0.8; }
-      }
-      if (a.kind === 'upper' || a.kind === 'recovery') { this.arms[1].upper.rotation.x = -2.7 * strike; this.body.rotation.y += Math.sin(a.age * 0.25) * (a.kind === 'recovery' ? 0.9 : 0.1); }
-      if (a.kind === 'grab' || a.kind === 'slam') {
-        this.arms[0].upper.rotation.x = this.arms[1].upper.rotation.x;
-        this.arms[0].lower.rotation.x = 0;
-        if (a.kind === 'slam') this.torso.rotation.x = strike * 0.5;
-      }
-    }
+    if (f.heldBy !== null) this.heldPose(time);
+    else if (f.hold) this.holdPose(time, near, far);
+    if (f.attack && f.heldBy === null) this.attackPose(f, near, far, time);
     if (f.guarding) for (const arm of this.arms) { arm.upper.rotation.x = -0.9; arm.lower.rotation.x = -1.75; }
     if (f.stun) {
       this.body.rotation.z = clamp(-f.vx * 2.0, -0.85, 0.85);
@@ -191,10 +182,94 @@ export class FighterRig {
       this.body.rotation.z = -f.facing * Math.PI * 2 * (1 - f.roll / 25);
       this.body.position.y = 0.6; this.legs.forEach(l => { l.upper.rotation.x = -1.2; l.lower.rotation.x = 1.6; });
     }
+    if (f.busy > 0 && !f.stun && !f.roll && !f.attack && f.heldBy === null) this.busyPose(f);
     if (f.invincible && !f.roll) this.body.visible = Math.floor(f.invincible / 5) % 2 === 0; else this.body.visible = true;
     this.shield.visible = f.guarding;
     this.shield.scale.setScalar(0.72 + f.shield / 200); this.shield.scale.y *= 1.18;
-    for (const m of this.mats) { m.emissive.set(f.flash > 6 ? '#ffffff' : f.buff > 0 ? '#254323' : '#000000'); m.emissiveIntensity = f.flash > 6 ? 0.72 : 0.38; }
+    const a = f.attack;
+    const counter = !!a?.def.counter && !a.countered && a.age >= a.def.counter.from && a.age <= a.def.counter.to;
+    const armor = !!a?.def.armor && a.age >= a.def.armor.from && a.age <= a.def.armor.to;
+    const tint = f.flash > 6 ? '#ffffff' : counter ? '#8a7020' : armor ? '#4a6f99' : f.buff > 0 ? '#254323' : '#000000';
+    for (const m of this.mats) { m.emissive.set(tint); m.emissiveIntensity = f.flash > 6 ? 0.72 : counter || armor ? 0.55 : 0.38; }
+  }
+
+  /** The fighter being held: lifted, arms flailing, shaking. */
+  private heldPose(time: number) {
+    this.body.position.y += 0.22;
+    this.torso.rotation.z = Math.sin(time * 24) * 0.12; this.torso.rotation.x = -0.15;
+    for (let i = 0; i < 2; i++) {
+      this.arm(this.arms[i], -2.3 + Math.sin(time * 28 + i * 2) * 0.35, -0.6, (i ? -1 : 1) * 0.45);
+      this.leg(this.legs[i], 0.2 + Math.sin(time * 20 + i) * 0.25, 0.5);
+    }
+  }
+  /** The captor before a throw or pummel: both arms forward holding the target at chest height. */
+  private holdPose(time: number, near: Limb, far: Limb) {
+    this.arm(near, -1.35, -0.9); this.arm(far, -1.3, -0.95);
+    this.torso.rotation.x = 0.1; this.body.position.y += Math.sin(time * 9) * 0.02;
+  }
+  /** Recovery lag that is not hitstun: tech stumble, landing crouch, end of a roll. */
+  private busyPose(f: Fighter) {
+    if (f.busyKind === 'tech') { this.torso.rotation.x = -0.35; this.arm(this.arms[0], -0.5, -0.4, 0.5); this.arm(this.arms[1], -0.5, -0.4, -0.5); this.body.position.y -= 0.05; }
+    else { this.body.position.y -= 0.2; this.legs.forEach(l => { l.upper.rotation.x = -0.6; l.lower.rotation.x = 1.1; }); this.torso.rotation.x = 0.25; }
+  }
+
+  /** One pose per move. Progress runs 0 to 1 over the startup, holds through the active frames, then eases back. */
+  private attackPose(f: Fighter, near: Limb, far: Limb, time: number) {
+    const a = f.attack!, d = a.def;
+    const wind = clamp(a.age / Math.max(1, a.start), 0, 1);
+    const back = clamp((a.age - a.start - a.active) / Math.max(1, a.duration - a.start - a.active), 0, 1);
+    const s = Math.sin((a.age < a.start ? wind : 1 - back) * Math.PI / 2);          // 0 -> 1 -> 0 strike weight
+    const L = this.legs, lerp = T.MathUtils.lerp;
+    switch (a.id) {
+      case 'jab1': this.arm(near, lerp(-0.5, -1.55, s), lerp(-1.0, -0.05, s)); this.torso.rotation.y = -0.15 + s * 0.35; break;
+      case 'jab2': this.arm(far, lerp(-0.6, -1.6, s), lerp(-1.0, -0.05, s)); this.torso.rotation.y = 0.15 - s * 0.35; break;
+      case 'jab3': this.arm(near, lerp(-2.3, -1.15, s), lerp(-1.3, -0.1, s)); this.arm(far, -0.9, -1.2); this.torso.rotation.y = -0.6 + s * 1.2; this.torso.rotation.x = s * 0.3; break;
+      case 'heavy': this.arm(near, lerp(-0.5, -1.5, s), lerp(-1.4, 0, s)); this.arm(far, -1.0, -1.3); this.torso.rotation.x = s * 0.38; this.torso.rotation.y = -0.4 + s * 0.8; this.leg(L[0], s * 0.5, 0.2); this.leg(L[1], -s * 0.6, 0.2); break;
+      case 'upper': this.arm(near, lerp(-0.2, -2.85, s), lerp(-1.2, -0.1, s)); this.body.position.y += lerp(-0.14, 0.12, s); this.torso.rotation.x = -s * 0.15; this.leg(L[0], -0.3, 0.8); break;
+      case 'sweep': this.body.position.y -= 0.26; this.leg(L[near === this.arms[0] ? 1 : 0], -1.3 * s, 0.1); this.leg(L[near === this.arms[0] ? 0 : 1], 0.3, 0.9); this.torso.rotation.x = 0.3; this.arm(near, -0.6, -0.9); break;
+      case 'nair': this.torso.rotation.y = a.age * 0.7; this.leg(L[0], -1.2, 0.3); this.leg(L[1], -0.9, 0.3); this.arm(near, -1.3, -0.3, 0.9); this.arm(far, -1.3, -0.3, -0.9); break;
+      case 'fair': this.arm(near, -1.5, -0.2); this.arm(far, -1.3, -0.6); this.leg(L[0], -1.3 * s, 0.1); this.leg(L[1], 0.1, 0.9); this.torso.rotation.x = -0.15 * s; break;
+      case 'bair': this.leg(L[0], 1.2 * s, 0.2); this.leg(L[1], -0.2, 0.6); this.torso.rotation.x = 0.4 * s; this.arm(near, -1.0, -0.6); this.arm(far, -1.2, -0.5); break;
+      case 'uair': this.arm(near, lerp(-1.0, -2.95, s), -0.1); this.arm(far, -2.6 * s, -0.3); this.leg(L[0], -0.5, 1.2); this.leg(L[1], -0.3, 1.0); this.torso.rotation.x = -0.25 * s; break;
+      case 'dair': this.leg(L[0], -0.5, 0.2); this.leg(L[1], -0.35, 0.2); this.arm(near, -0.4, -0.3, 0.8); this.arm(far, -0.4, -0.3, -0.8); this.torso.rotation.x = 0.45 * s; break;
+      case 'special': {
+        const fire = d.projectile ? d.projectile.fire : a.start, p = clamp(a.age / Math.max(1, fire), 0, 1), thrown = a.age >= fire;
+        // A long startup (Elon's rocket) reads as a telegraph: both arms up, trembling, then the throw.
+        if (fire >= 18 && !thrown) { this.arm(near, -2.8 + Math.sin(time * 40) * 0.08, -0.4); this.arm(far, -2.7, -0.4); this.body.position.y += p * 0.12; }
+        else { this.arm(near, thrown ? lerp(-1.6, -0.7, back) : lerp(-0.4, -2.6, p), thrown ? -0.05 : -0.9); this.torso.rotation.y = thrown ? 0.5 * (1 - back) : -0.4 * p; }
+        break;
+      }
+      case 'recovery': {
+        this.arm(near, -2.9, -0.1); this.arm(far, -2.9, -0.1); this.leg(L[0], 0.1, 0.3); this.leg(L[1], 0.05, 0.25);
+        this.body.rotation.z = clamp(-f.vx * 1.6, -0.6, 0.6); this.body.rotation.y += Math.sin(a.age * 0.25) * 0.5; this.torso.rotation.x = -0.1;
+        break;
+      }
+      case 'down': this.downPose(f, near, far); break;
+      case 'grab': this.arm(near, lerp(-0.6, -1.5, s), lerp(-0.9, -0.15, s), 0.12); this.arm(far, lerp(-0.6, -1.45, s), lerp(-0.9, -0.15, s), -0.12); this.torso.rotation.x = 0.22 * s; break;
+      case 'pummel': { const hit = clamp(1 - Math.abs(a.age - 3) / 3, 0, 1); this.arm(near, -1.35 - hit * 0.55, -0.9 + hit * 0.7); this.arm(far, -1.3, -0.95); this.torso.rotation.x = 0.1 + hit * 0.25; break; }
+      case 'fthrow': { const r = d.throwing!.release, t = clamp(a.age / r, 0, 1), out = a.age >= r ? 1 - back * 0.6 : 0; this.arm(near, lerp(-1.4, -1.6, out), lerp(-0.9, -0.05, out)); this.arm(far, lerp(-1.3, -1.5, out), lerp(-0.95, -0.05, out)); this.torso.rotation.y = lerp(-0.25, 0.6, t * t); this.torso.rotation.x = 0.2 * out; break; }
+      case 'bthrow': { const r = d.throwing!.release, t = clamp(a.age / r, 0, 1); this.arm(near, -2.0, -0.5); this.arm(far, -1.9, -0.5); this.torso.rotation.y = -t * Math.PI * 0.9; this.torso.rotation.x = 0.1; break; }
+      case 'uthrow': { const r = d.throwing!.release, t = clamp(a.age / r, 0, 1); this.arm(near, lerp(-1.35, -3.1, t), lerp(-0.9, -0.1, t)); this.arm(far, lerp(-1.3, -3.05, t), lerp(-0.95, -0.1, t)); this.body.position.y += t * 0.1; this.torso.rotation.x = -0.2 * t; break; }
+      case 'dthrow': { const r = d.throwing!.release, t = clamp(a.age / r, 0, 1); this.arm(near, lerp(-3.0, -0.4, t * t), -0.2); this.arm(far, lerp(-2.9, -0.4, t * t), -0.2); this.torso.rotation.x = 0.85 * t * t; this.leg(L[0], -0.3, 0.5); this.leg(L[1], -0.2, 0.5); break; }
+      default: break;
+    }
+  }
+
+  /** Down specials: slam phases, counter stance, dash lean. */
+  private downPose(f: Fighter, near: Limb, far: Limb) {
+    const a = f.attack!, d = a.def, L = this.legs, lerp = T.MathUtils.lerp;
+    if (d.kind === 'counter') {
+      const open = d.counter!, live = !a.countered && a.age >= open.from && a.age <= open.to;
+      if (a.countered) { this.arm(near, -1.6, -0.05); this.arm(far, -1.0, -1.2); this.torso.rotation.y = 0.7; this.torso.rotation.x = 0.2; return; }
+      this.arm(near, live ? -2.4 : -1.0, -1.6); this.arm(far, live ? -2.2 : -1.0, -1.7); this.torso.rotation.x = live ? -0.2 : 0.05; this.body.position.y -= live ? 0.06 : 0;
+    } else if (d.kind === 'dash') {
+      this.torso.rotation.x = 0.55; this.arm(near, 0.7, -0.3); this.arm(far, 0.6, -0.3); this.leg(L[0], -0.9, 0.2); this.leg(L[1], 0.7, 0.9); this.body.position.y -= 0.05;
+    } else {
+      const windup = a.age < a.start && !a.diving;
+      if (a.diving) { this.torso.rotation.x = 0.95; this.arm(near, -0.3, -0.2); this.arm(far, -0.3, -0.2); this.leg(L[0], 0.1, 0.1); this.leg(L[1], 0.05, 0.1); }
+      else if (windup) { const p = clamp(a.age / Math.max(1, a.start), 0, 1); this.arm(near, lerp(-0.5, -3.0, p), -0.3); this.arm(far, lerp(-0.5, -2.9, p), -0.3); this.body.position.y += p * 0.15; this.torso.rotation.x = -0.15 * p; }
+      else { const fade = clamp((a.age - a.start) / Math.max(1, a.duration - a.start), 0, 1); this.body.position.y -= 0.3 * (1 - fade * 0.6); this.torso.rotation.x = 0.7 * (1 - fade); this.arm(near, -0.1, -0.2); this.arm(far, -0.1, -0.2); this.leg(L[0], -0.8, 1.3); this.leg(L[1], -0.7, 1.2); }
+    }
   }
   dispose() {
     this.mats.forEach(m => m.dispose());
