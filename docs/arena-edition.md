@@ -8,24 +8,42 @@ The reference was [JRickey/BattleShip](https://github.com/JRickey/BattleShip), a
 
 | Module | Responsibility |
 | --- | --- |
-| `src/arena/data.ts` | Reuses the original roster's names, palettes, quips, and signature move names. Defines weights, speed and the collision/rendering platform coordinates. |
-| `Simulation.ts` | Seeded, fixed-step 60 Hz combat, AI, projectiles, pickups, stocks, invulnerability, sudden death, and timers. No browser/renderer imports. |
-| `FighterRig.ts` | Six original articulated mesh characters with tailored clothing, faces, hands, accessories, and distinct action poses. Shared primitives and per-instance materials. |
-| `Stage.ts` | Three original geometric arenas, skyline, shops, bridge, foliage, signage, and collision-aligned platforms. Instanced background windows. |
-| `Renderer.ts` | Three.js lighting, shadows, camera tracking/zoom, hit particles, real-time character portraits, interpolation, and GPU resource disposal. |
-| `Input.ts` | Keyboard edge inputs and simultaneous two-player standard Gamepad API input. |
-| `Audio.ts` | Original synthesized score and combat effects. No downloads. |
-| `App.ts` | Selection, quick matches, local versus, arcade ladder, training, pause, results, HUD, settings, and bounded fixed-step loop. |
+| `src/arena/data.ts` | Reuses the original roster's names, palettes and quips. Defines the platform records (id, top, width, solid or one-way, thickness, ledges) that collision, ledges and the visible stage all read. |
+| `moveDefinitions.ts` | Typed move data: hit windows (hit volumes, damage, launch angle/base/growth, hitstun, hitstop, re-hit rules), cancels, projectiles, counters, armor, dives, grabs, throws, and the combo documentation records. No browser imports. |
+| `fighterDefinitions.ts` | The six fighters: body, movement, AI profile, and a complete move set each, plus each one's documented and tested combos. The single source of truth for gameplay numbers. |
+| `ActionBuffer.ts` | Per-fighter input buffer: fresh-press detection, a 6-frame window that does not age during hitstop, direction captured at press time. Plain data. |
+| `collision.ts` | Swept stage collision: solid blocks (top, sides, underside) and one-way platforms, depenetration, ledges, projectile sweeps. Pure functions. |
+| `grabs.ts` | Catch, hold, tech, pummel and throw rules and their tuning constants. |
+| `Simulation.ts` | Seeded, fixed-step 60 Hz combat: action resolution, hit and contact resolution, holds, projectiles, pickups, stocks, combos, sudden death. No browser/renderer imports. |
+| `cpu.ts` | The CPU: produces ordinary controls, so it obeys the same buffer and legality rules as a human. Reads each fighter's move data. |
+| `stepper.ts` | Fixed-timestep driver with a documented, bounded stall policy. |
+| `moveInfo.ts` | Generates the move list, frame data and combo bands shown in-game from the same definitions. |
+| `FighterRig.ts` | Six articulated mesh characters with a pose per move: jab stages, tilts, five aerials, counter stance, dash, slam phases, catch, hold, struggle, pummel, four throws, tech and landing lag. |
+| `Stage.ts` | Three geometric arenas. The lit roof slab is the gameplay body; the dark building core is scenery set behind the fighters' plane. |
+| `Renderer.ts` | Lighting, shadows, camera, per-event effects, projectile props scaled to their hit volume, the training hitbox overlay, portraits, interpolation and GPU cleanup. |
+| `Input.ts` | Keyboard and two standard gamepads. Direction and shield taps shorter than a tick are not lost. |
+| `Audio.ts` | Synthesized combat effects (including catch, tech, counter, impact) and the score. |
+| `App.ts` | Selection, modes, pause, results, HUD, combo popup, contextual grab hints, training tools, move list, and the bounded fixed-step loop. |
 | `scripts/build-portable.mjs` | Creates a self-contained IIFE with inline CSS in `PLAY.html`. Works via `file://`, no server. |
-| `scripts/package-arena.py` | ZIPs the playable game and editable source; verifies CRCs and writes SHA-256. |
+| `scripts/package-arena.mjs` / `.py` | ZIPs the playable game and editable source; verifies CRCs and writes SHA-256. The launcher finds a working Python 3 on Windows. |
 
 ## Combat behavior
 
-Attacks have startup, active, and recovery ticks, and hit once per move. Equal-frame attacks can trade. Hitstop freezes movement and move timelines, while the match timer continues. Knockback grows with damage and is reduced by fighter weight. Airborne steering changes launch direction. A player gets a ground jump, one air jump, and one rising recovery per airborne sequence. Moving toward a close ledge grants a short pull-up; walking away does not snap the character back.
+**Input.** A fresh press of attack, special, grab or jump becomes a request that stays valid for 6 gameplay frames, so a press just before a fighter can act still executes once. Requests are captured during hitstop and do not age while frozen, but do age through stun and recovery. Held buttons never repeat. Pause, resume, launch, KO and respawn clear requests; a button held through a countdown or a respawn is not a fresh press. Priority for simultaneous presses: special, then grab, then attack, then jump. Shield + grab grabs out of shield; shield + jump jumps; up + special recovers without also jumping. A spent recovery is refused (it never turns into a neutral projectile).
 
-The original V/B/N/M controls remain P1's attack/special/shield/grab. P2 uses J/K/L/semicolon, with the old numeric aliases retained. Grounded direction+attack is a stronger attack. All fighters have different signature projectile meshes, trajectories, movement speeds and weights. This is a new platform-fighter ruleset, not a modification of Classic's health/round engine.
+**Moves.** Every fighter has a three-hit jab string (each press during a cancel window advances it; it resets after a short grace or after the finisher), forward/up/down ground attacks, five directional aerials (back air does not turn the fighter around; facing changes only on the ground and on a double jump), a neutral projectile, an up recovery and a down special. The down special is a slam for Hunter, Al, Chad and Elon (hang, dive to the nearest surface, one impact on landing, then endlag), a counter for Kevin, and a dash for Priya. Specific on-hit cancels and jump-cancels exist on designated moves only.
 
-CPU recovery takes priority offstage. Three difficulty levels change timing, aggression and shielding. The arcade ladder advances after a human win and ends with Elon. Training freezes neither movement nor combat, but disables the clock/stock limit and leaves the dummy under P2 control.
+**Contact.** Hit volumes and hurtboxes are boxes. Hits are resolved from a snapshot of both fighters, so trades are symmetric, hitstop is the larger of the impacts, and swapping slots changes nothing. Launch speed is (base + damage x growth) / weight, capped at 1.4 per tick; hitstun is authored per move. Projectiles carry their own launch definition and direction. Stage solids stop or bounce them; upper platforms never do.
+
+**Combos.** A confirmed combo counts hits the defender could not act between; blocked hits, whiffs and pummels do not count. From the fourth hit, damage and hitstun shrink by 10% per hit. Directional influence is bounded per hit.
+
+**Stage.** The main stage is a solid block (top, sides, underside). Upper platforms are one-way; holding down drops through only the platform being stood on, for 18 frames. Ledges are derived from the platform data; regrabs grant less protection each time and respect a cooldown, reset by a genuine landing, a KO or a respawn. Rolls stop at a platform edge and end their own protection. Grounded fighters keep a small symmetric gap; airborne fighters cross over.
+
+**Grabs.** M throws out a short catch. A connected catch links both fighters: the target is drawn to a hold position at the captor's hands, nobody can walk or jump, and there is no damage yet. The held fighter can break it with a fresh grab press in the first 8 frames (including during the catch's hitstop). The captor can pummel (twice) or throw forward, back, up or down; damage and launch happen once, on the throw's release frame. A hold lasts at most 54 frames, then throws forward. Two grabs that connect on each other break; an active strike beats a grab. Anyone thrown, teched or freed is protected from regrabs for 45 frames.
+
+The original V/B/N/M controls remain P1's attack/special/shield/grab. P2 uses J/K/L/semicolon, with the old numeric aliases retained. This is a new platform-fighter ruleset, not a modification of Classic's health/round engine.
+
+CPU recovery takes priority offstage and respects the fighter's recovery. Three difficulty levels change timing, aggression, shielding, follow-ups and how often it breaks grabs. The arcade ladder advances after a human win and ends with Elon. Training disables the clock and stock limit and offers dummy behaviours (stand, shield, jump, DI left/right, tech), damage presets, position reset, hitbox and state/input displays, and a frame-step mode (press `.`); P2's own keys still move the dummy.
 
 ## Rendering and portability
 
@@ -37,6 +55,6 @@ Gameplay targets a 60 Hz fixed simulation; catch-up is capped after a stall. Dis
 
 ## Testing and practical limits
 
-Run `npm test`, `npm run build`, `npm run build:portable` and `npm run test:arena`. The browser suite can target the portable file with `SVS_PORTABLE=1`. The `SVS_CHROMIUM` environment variable selects an existing Chromium executable. `SVS_SANDBOX_DEVICES=1` replaces unavailable audio/controller devices in sandboxed CI; production code remains unchanged. Physical controller routing, audible output and native Windows execution still require a hardware check.
+Run `npm test`, `npm run build`, `npm run build:portable` and `npm run test:arena` (see `docs/arena-gameplay-pass.md` for the latest results). The browser suite can target the portable file with `SVS_PORTABLE=1`. The `SVS_CHROMIUM` environment variable selects an existing Chromium executable. `SVS_SANDBOX_DEVICES=1` replaces unavailable audio/controller devices in sandboxed CI; production code remains unchanged. Physical controller routing, audible output and native Windows execution still require a hardware check.
 
 This release uses original stylized mesh characters and procedural animation, not motion capture or BattleShip's original character assets. It is intended to be playable and editable, with a complete new ruleset. Competitive balance, full controller menu navigation, mobile touch controls, online play, rollback, and commercial-quality authored model/animation assets are outside this release. The legacy Maul guest remains only in the existing source/Classic mode.

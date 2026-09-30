@@ -1,2 +1,3 @@
-Based on sherajr/silicon-valley-smackdown, main commit 595f6d4.
+Based on sherajr/silicon-valley-smackdown, main commit 50a2cf2 (Arena Edition V2, PR #15),
+plus the gameplay pass described in docs/arena-gameplay-pass.md.
 Arena Edition implements an independent 3D platform-fighter mode.

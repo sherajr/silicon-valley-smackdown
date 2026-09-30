@@ -50,18 +50,22 @@ export class ArenaStage {
     const curve = new T.QuadraticBezierCurve3(new T.Vector3(-29.4, 7.5, -31.6), new T.Vector3(-22.8, -4, -31.6), new T.Vector3(-16.4, 7.5, -31.6));
     const cable = new T.TubeGeometry(curve, 30, 0.042, 5, false); this.owned.push(cable); this.root.add(new T.Mesh(cable, this.mat('#b18578')));
     for (let i = 1; i < 16; i++) { const p = curve.getPoint(i / 16); this.box(p.x, (p.y - 2) / 2, -31.6, 0.025, p.y + 2, 0.025, '#bb9381'); }
-    // The same platform definitions drive collision and visible geometry.
-    for (const [i, p] of STAGE_PLATFORMS[index].entries()) {
-      if (i === 0) {
-        this.box(p.x, -0.53, 0, p.w, 1.06, 6.8, '#253641');
-        this.box(p.x, -0.06, 0, p.w, 0.12, 6.8, '#547071');
-        this.box(p.x, -0.15, 3.43, p.w, 0.09, 0.07, this.accent, true);
-        this.box(p.x, -0.82, 3.43, p.w, 0.07, 0.07, '#f3ae73', true);
-        this.box(p.x, -3.1, -0.3, p.w - 2, 4.3, 5.5, '#192e3c');
+    // The same platform definitions drive collision and visible geometry. A solid platform is the lit slab, which is the
+    // only gameplay body: its top, sides and underside all collide. The dark building core under it is scenery, set back
+    // behind the fighters' plane so nothing looks like an invisible wall and fighters below the roof stay visible.
+    for (const p of STAGE_PLATFORMS[index]) {
+      if (p.solid) {
+        this.box(p.x, p.y - p.thickness / 2, 0, p.w, p.thickness, 6.8, '#253641');
+        this.box(p.x, p.y - 0.06, 0, p.w, 0.12, 6.8, '#547071');
+        this.box(p.x, p.y - 0.15, 3.43, p.w, 0.09, 0.07, this.accent, true);
+        this.box(p.x, p.y - 0.82, 3.43, p.w, 0.07, 0.07, '#f3ae73', true);
+        this.box(p.x, p.y - 3.1, -4.3, p.w - 2, 4.3, 4.6, '#192e3c');
         for (let x = -7.5; x <= 7.5; x += 1.5) {
-          this.box(x, -2.7, 2.48, 1.05, 2.6, 0.03, '#344e61');
-          this.box(x, -2.7, 2.51, 0.02, 2.6, 0.02, this.accent, true);
+          this.box(x, p.y - 2.7, -1.98, 1.05, 2.6, 0.03, '#344e61');
+          this.box(x, p.y - 2.7, -1.95, 0.02, 2.6, 0.02, this.accent, true);
         }
+        // Ledge markers sit exactly on the grabbable corners the simulation uses.
+        if (p.ledges) for (const side of [-1, 1]) this.box(p.x + side * p.w / 2, p.y - 0.02, 3.44, 0.22, 0.12, 0.08, '#ffe3a1', true);
         for (let x = -9; x < 10; x += 1.0) this.box(x, 0.005, 0, 0.017, 0.012, 6.75, '#74908b');
         for (let z = -3; z < 4; z++) this.box(0, 0.006, z, 18.9, 0.012, 0.016, '#74908b');
         for (const x of [-9.2, 9.2]) {

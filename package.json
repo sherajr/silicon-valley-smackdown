@@ -24,7 +24,7 @@
     "test:desktop:unit": "node --test tests/desktop/assets.test.cjs",
     "test:desktop": "playwright test --config playwright.desktop.config.ts",
     "build:portable": "npm run typecheck && node scripts/build-portable.mjs",
-    "package:zip": "npm run build:portable && python3 scripts/package-arena.py",
+    "package:zip": "npm run build:portable && node scripts/package-arena.mjs",
     "test:arena": "playwright test --config playwright.arena.config.ts"
   },
   "devDependencies": {

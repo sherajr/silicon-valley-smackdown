@@ -19,22 +19,37 @@ A tie starts sudden death at 150% with one stock.
 CONTROLS                   PLAYER 1               PLAYER 2
 Move                       A / D                  Left / Right arrows
 Jump / double jump         W or Space             Up arrow
-Basic / air attack         V                      J or 4
+Jab string                 V, V, V (tap)          J, J, J (or 4)
 Strong directional attack  Direction + V          Direction + J
+Aerials                    V in the air + a       J in the air + a
+                           direction (neutral,    direction
+                           forward, back, up, down)
 Signature projectile       B                      K or 5
 Rising recovery            Hold W + tap B         Hold Up + tap K
 Down special               S + B                  Down + K
 Shield                     N                      L or 6
 Dodge roll                 N + A or D             L + Left or Right
-Grab (beats shield)        M                      ; or +
+Grab (works from shield)   M                      ; or +
+Throw (while holding)      M + direction          ; + direction
+Pummel (while holding)     V (twice at most)      J
+Break a grab               tap M (first 8 frames) tap ;
 Drop through / fast fall   Hold S                 Hold Down
 Pause / resume             Escape
 Fullscreen                 F (or your browser's fullscreen command)
 Mute                       O
 
-Jump twice, then use up + special to get back to the stage. Recovery refreshes
-when you land. Steer toward a nearby ledge to pull yourself up. A shield loses
-strength while held and can break. Coffee heals 22%; GPUs boost attacks for 8s.
+Jump twice, then use up + special to get back to the stage. Recovery works once
+until you land. Steer toward a nearby ledge to pull yourself up. Rolls stop at a
+platform's edge. A shield loses strength while held and can break. Coffee heals
+22%; GPUs boost attacks for 8s.
+
+GRABS AND COMBOS
+M catches first, even out of shield. The caught fighter is held at your hands and
+takes no damage until you throw: M with a direction throws forward, back, up or
+down. Tap grab within the first 8 frames to break a grab. Two grabs that connect
+on each other break. Hits the opponent cannot act between make a combo, counted
+beside your damage. Open the MOVE LIST on the character-select screen or the
+pause menu for every move's frame data and each fighter's tested routes.
 
 CONTROLLERS
 Standard browser-mapped controllers are supported. Press a button to activate.
@@ -48,21 +63,25 @@ MODES
 Quick match: fight a CPU on any arena.
 Local versus: two people on the same keyboard or two controllers.
 Arcade: climb the roster to the Elon final match.
-Training: unlimited stocks, no timer, stationary dummy. P2 keys control the dummy.
-Pause in Training for DUMMY +50% to practice high-damage launches.
+Training: unlimited stocks, no timer. A panel offers dummy behaviour (stands,
+shields, jumps, DI left or right, breaks grabs), damage presets, position reset,
+a hitbox overlay, a state-and-input readout, and frame step (press the . key).
+P2 keys still move the dummy. Pause for DUMMY +50% or the move list.
 
 FIGHTERS
-Hunter: The Tech Bro / iPad Yeet / Elevator Pitch recovery
-Kevin: The Lawyer / Briefcase Briefing / Appeal to the Court recovery
-Al: The Drunkard / Bottle Service / Last Call Lift recovery
-Priya: The Recruiter / Resume Blast / Career Ladder recovery
-Chad: The Venture Capitalist / Cash Burn / Bridge Funding recovery
-Elon: The Founder / Rocket Reply / To the Moon recovery
+Hunter: The Tech Bro. Balanced rusher. iPad Yeet, Elevator Pitch recovery, Pivot Slam.
+Kevin: The Lawyer. Long pokes and a Rebuttal counter. Briefcase Briefing, Appeal to the Court.
+Al: The Drunkard. Slow grappler with the longest grab. Bottle Service, Last Call Lift, Closing Time.
+Priya: The Recruiter. Fast aerial rushdown. Resume Blast, Career Ladder, Headhunt Dash.
+Chad: The Venture Capitalist. Midrange control with an armored heavy. Cash Burn, Bridge Funding, Down Round.
+Elon: The Founder. Big, slow artillery. Rocket Reply, To the Moon (long landing lag), Ground Pound.
 
 ARENAS
 Castro Street Coffee Clash, Sand Hill Road Showdown, Palo Alto Launch Night.
 All six fighters and all three arenas are genuinely rendered as 3D meshes.
-Combat is played on a horizontal plane, as in a platform fighter.
+Combat is played on a horizontal plane, as in a platform fighter. The lit roof is
+solid: you cannot jump up through it or walk into its sides. Upper platforms are
+one-way.
 
 PERFORMANCE / TROUBLESHOOTING
 For slower integrated graphics, uncheck High quality shadows in match setup.
