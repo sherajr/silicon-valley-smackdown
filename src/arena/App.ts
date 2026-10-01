@@ -1,6 +1,6 @@
 import './styles.css';
-import { ArenaSim } from './Simulation';
-import type { Controls, DummyMode, Fighter, MatchOptions, Mode } from './Simulation';
+import { ArenaSim, noInput } from './Simulation';
+import type { Controls, DummyMode, Fighter, GameEvent, MatchOptions, Mode } from './Simulation';
 import { ArenaRenderer } from './Renderer';
 import { ArenaInput } from './Input';
 import { ArenaAudio } from './Audio';
@@ -9,6 +9,11 @@ import { describeBand, describeCombos, describeMoves, THROW_HINT } from './moveI
 import { ROSTER, ROLES, STAGE_NAMES, STAGE_TAGS, FIGHTER_ACCENTS, SPECIAL_NAMES } from './data';
 import { QUALITY, QUALITY_TIERS, SETTINGS_KEY, hasSavedQuality, migrateSettings, serializeSettings } from './quality';
 import type { ArenaSettings, QualityTier } from './quality';
+import { OnlineClient } from './net/OnlineClient';
+import { RollbackSession } from './net/RollbackSession';
+import { inviteUrl, lobbyMarkup, onlineEnabled, onlineGateMarkup, publicGameUrl, relayUrl, roomFromLocation } from './net/lobbyView';
+import { ERROR_TEXT } from '../../shared/onlineProtocol';
+import type { MatchDescriptor, RoomView, ServerMessage } from '../../shared/onlineProtocol';
 
 const brand = '<div class="brand"><span class="brand-mark">SV</span><span>Silicon Valley<br>Smackdown</span></div>';
 const button = (id: string, label: string, primary = false) => `<button id="${id}" class="${primary ? 'primary-btn' : 'ghost-btn'}">${label}${primary ? '<span class="arrow">↗</span>' : ''}</button>`;
@@ -47,7 +52,7 @@ export class ArenaApp {
   view: ArenaRenderer;
   input = new ArenaInput();
   audio = new ArenaAudio();
-  screen: 'home' | 'select' | 'match' | 'result' = 'home';
+  screen: 'home' | 'select' | 'lobby' | 'match' | 'result' = 'home';
   paused = false;
   ui: HTMLDivElement;
   private loaded = loadSettings();
@@ -80,6 +85,23 @@ export class ArenaApp {
   private readout: HTMLElement | null = null;
   private modalReturn: (() => void) | null = null;
   private animationFrame = 0;
+  private net: OnlineClient | null = null;
+  private netView: RoomView | null = null;
+  private netMatch: MatchDescriptor | null = null;
+  private netSession: RollbackSession | null = null;
+  private netStartAt = 0;
+  private netStarted = false;
+  private netAccumulator = 0;
+  private netOverlay = false;
+  private netResult: Extract<ServerMessage, { t: 'result' }> | null = null;
+  private netInterrupted: string | null = null;
+  private netStatus = 'Connecting…';
+  private netWelcomed = false;
+  private netPending: 'create' | { t: 'join'; code: string } | null = null;
+  private netReconnects = 0;
+  private netResultSent = false;
+  private netFixture: Map<number, Controls> | null = null;
+  private readonly testMode = new URLSearchParams(location.search).get('arenaTest') === '1';
 
   constructor(container: HTMLElement) {
     container.innerHTML = '<div id="arena"><div id="arena-ui"></div></div>';
@@ -91,15 +113,17 @@ export class ArenaApp {
     this.audio.setMute(this.settings.muted); this.audio.music = this.settings.music;
     this.input.onPause = () => {
       if (this.modalReturn) { const back = this.modalReturn; this.modalReturn = null; back(); }
+      else if (this.netMatch && this.screen === 'match') this.toggleOnlineOverlay();
       else if (this.screen === 'match') this.togglePause();
-      else if (this.screen === 'select') this.home();
+      else if (this.screen === 'select' || this.screen === 'lobby') this.home();
     };
     this.input.onFullscreen = () => this.fullscreen(); this.input.onMute = () => this.toggleMute();
     this.input.onStep = () => { if (this.training.step && this.mode === 'training' && this.screen === 'match' && !this.paused) this.stepRequests++; };
     // The renderer watches its own container and the display scale; fullscreen changes just prompt a re-measure.
     document.addEventListener('fullscreenchange', () => this.view.resize());
-    window.addEventListener('blur', () => { if (this.screen === 'match' && !this.paused) this.togglePause(true); });
+    window.addEventListener('blur', () => { if (!this.netMatch && this.screen === 'match' && !this.paused) this.togglePause(true); });
     document.addEventListener('visibilitychange', () => {
+      if (this.netMatch) return;
       if (document.hidden && this.screen === 'match' && !this.paused) this.togglePause(true);
       this.last = 0; this.stepper.reset();
     });
@@ -108,9 +132,12 @@ export class ArenaApp {
       this.ui.innerHTML = '<div class="fatal"><div><h2>The graphics connection was interrupted.</h2><p>Reload the game to reconnect. If it happens again, choose Performance graphics in the match setup.</p><button class="primary-btn" id="reload">Reload game</button></div></div>';
       this.bind('reload', () => location.reload());
     });
-    this.home(); this.animationFrame = requestAnimationFrame(t => this.frame(t));
+    this.home();
+    const pendingRoom = onlineEnabled() ? roomFromLocation() : null;
+    if (pendingRoom) this.openOnline(pendingRoom, true);
+    this.animationFrame = requestAnimationFrame(t => this.frame(t));
     // Debug controls exist only when explicitly requested; production users never expose internals.
-    if (new URLSearchParams(location.search).get('arenaTest') === '1') (window as unknown as { __arena: ArenaApp }).__arena = this;
+    if (this.testMode) (window as unknown as { __arena: ArenaApp }).__arena = this;
   }
   private options(): MatchOptions { return { fighters: [...this.picks], stage: this.stage, mode: this.mode, difficulty: this.settings.difficulty, items: this.settings.items }; }
   private save() { try { localStorage.setItem(SETTINGS_KEY, serializeSettings(this.settings)); } catch { /* Optional persistence. */ } }
@@ -125,14 +152,15 @@ export class ArenaApp {
     for (const id of ['mute', 'hud-mute', 'pause-mute']) { const e = document.getElementById(id); if (e) e.textContent = label; }
   }
   home() {
+    this.shutdownNet();
     this.screen = 'home'; this.paused = false; this.modalReturn = null; this.input.active = false; this.input.clear(); this.stepper.reset();
     this.sim = new ArenaSim({ ...this.options(), fighters: [0, 1], stage: 0 });
     this.sim.fighters[0].x = this.sim.fighters[0].prevX = 1.2; this.sim.fighters[1].x = this.sim.fighters[1].prevX = 5.2;
     this.view.setMatch([0, 1], 0); this.view.setDebug(false);
     this.ui.innerHTML = `<div class="screen hero"><header class="topbar">${brand}<div class="topbar-right"><span class="caps muted"><i class="status-dot"></i>OFFLINE / LOCAL MULTIPLAYER</span>${button('mute', this.settings.muted ? 'SOUND OFF' : 'SOUND ON')}</div></header>
-      <main class="hero-copy"><div class="eyebrow">BAY AREA EGOS. ARCADE RULES.</div><h1>Big ideas.<br>Bigger<br><em>knockback.</em></h1><p class="hero-description">Take your rivalry to the rooftop.<br>Six disruptors. Three arenas. One last stock.</p><div class="hero-actions">${button('enter', 'ENTER THE ARENA', true)}${button('how', 'HOW TO PLAY')}</div><div class="hero-features">3D PLATFORM FIGHTING &nbsp; / &nbsp; 1–2 PLAYERS</div></main>
+      <main class="hero-copy"><div class="eyebrow">BAY AREA EGOS. ARCADE RULES.</div><h1>Big ideas.<br>Bigger<br><em>knockback.</em></h1><p class="hero-description">Take your rivalry to the rooftop.<br>Six disruptors. Three arenas. One last stock.</p><div class="hero-actions">${button('enter', 'ENTER THE ARENA', true)}${button('how', 'HOW TO PLAY')}${this.onlineHomeAction()}</div><div class="hero-features">3D PLATFORM FIGHTING &nbsp; / &nbsp; 1–2 PLAYERS</div></main>
       <div class="location-tag"><span class="caps">01 / MOUNTAIN VIEW, CALIFORNIA</span><strong>Castro Street</strong><span class="caps">THE COFFEE IS $9. THE BEEF IS FREE.</span></div><footer class="bottom-strip"><b>MOVE FAST. BREAK FRIENDSHIPS.</b><span>KEYBOARD + CONTROLLER</span><span class="edition">ARENA EDITION / 01</span></footer></div>`;
-    this.bind('enter', () => { this.audio.unlock(); this.selection(); }); this.bind('how', () => this.controls(() => this.home())); this.bind('mute', () => this.toggleMute());
+    this.bind('enter', () => { this.audio.unlock(); this.selection(); }); this.bind('how', () => this.controls(() => this.home())); this.bind('online', () => { this.audio.unlock(); this.openOnline(); }); this.bind('mute', () => this.toggleMute());
   }
   selection() {
     this.screen = 'select'; this.paused = false; this.modalReturn = null; this.input.active = false; this.input.clear(); this.view.setDebug(false);
@@ -175,17 +203,20 @@ export class ArenaApp {
     this.renderHud();
   }
   private renderHud() {
-    const practice = this.mode === 'training', slotLabel = (i: number) => i ? this.mode === 'versus' ? 'P2' : practice ? 'DUMMY' : 'CPU' : 'P1';
+    const practice = this.mode === 'training';
+    const online = !!this.netMatch;
+    const slotLabel = (i: number) => online ? (i === (this.netView?.slot ?? 0) ? 'YOU' : 'OPP') : i ? this.mode === 'versus' ? 'P2' : practice ? 'DUMMY' : 'CPU' : 'P1';
     this.ui.innerHTML = `<div class="hud"><div class="hud-top">${brand}<div class="hud-actions">${practice ? button('reset', 'RESET') : ''}${button('hud-mute', this.settings.muted ? 'SOUND OFF' : 'SOUND ON')}${button('pause', 'PAUSE / ESC')}</div></div>
       <div class="clock"><strong id="timer">5:00</strong><small>${this.mode === 'arcade' ? `ARCADE ${this.ladderIndex + 1}/${this.ladder.length} · ` : ''}${STAGE_NAMES[this.stage].toUpperCase()}</small></div>
       ${this.sim.fighters.map((f, i) => `<div class="player-hud ${i ? 'p2' : ''}" style="--accent:${FIGHTER_ACCENTS[f.character]}"><img class="hud-portrait" src="${this.portraits[f.character]}" alt=""><div class="hud-info"><div class="hud-name"><span class="slot-label">${slotLabel(i)}</span>${ROSTER[f.character].name.toUpperCase()}</div><div class="percent" id="damage${i}">0<small>%</small></div><div class="stocks" id="stocks${i}"></div><div class="shield-track"><i id="shield${i}" style="width:100%"></i></div><div class="badge-buff" id="buff${i}"></div></div></div><div class="combo-pop ${i ? 'p2' : ''}" id="combo${i}"></div><div class="floating-marker ${i ? 'p2' : ''}" id="marker${i}">${slotLabel(i)}</div>`).join('')}
-      <div class="hud-keys"><div><kbd>WASD</kbd> MOVE &nbsp; <kbd>V</kbd> ATTACK &nbsp; <kbd>B</kbd> SPECIAL</div><div><kbd>N</kbd> SHIELD &nbsp; <kbd>M</kbd> GRAB / THROW &nbsp; <kbd>W+B</kbd> RECOVER</div><div class="tiny">${this.mode === 'versus' ? 'P2: ARROWS + J / K / L / ;' : 'MORE DAMAGE = BIGGER KNOCKBACK'}</div></div>
+      <div class="hud-keys"><div><kbd>WASD</kbd> MOVE &nbsp; <kbd>V</kbd> ATTACK &nbsp; <kbd>B</kbd> SPECIAL</div><div><kbd>N</kbd> SHIELD &nbsp; <kbd>M</kbd> GRAB / THROW &nbsp; <kbd>W+B</kbd> RECOVER</div><div class="tiny">${online ? 'ONLINE: PLAYER 1 KEYS ON EACH MACHINE' : this.mode === 'versus' ? 'P2: ARROWS + J / K / L / ;' : 'MORE DAMAGE = BIGGER KNOCKBACK'}</div></div>
+      ${online ? '<div class="net-pill" id="net-pill">CONNECTING</div>' : ''}
       <div class="grab-hint" id="hint"></div><div class="center-message" id="center"></div><div class="match-toast" id="toast" style="opacity:0"></div>
       ${practice ? this.trainingPanel() : ''}</div>`;
     this.hud = [0, 1].map(i => ({ damage: document.getElementById(`damage${i}`)!, stocks: document.getElementById(`stocks${i}`)!, shield: document.getElementById(`shield${i}`)!, marker: document.getElementById(`marker${i}`)!, buff: document.getElementById(`buff${i}`)!, combo: document.getElementById(`combo${i}`)!, last: { damage: 0, color: '', shield: -1, buff: '', stocks: '', marker: '', hidden: false, edge: false } }));
     this.lastCenter = ''; this.lastTimer = ''; this.toastOpacity = '';
     this.timer = document.getElementById('timer'); this.center = document.getElementById('center'); this.toast = document.getElementById('toast'); this.hint = document.getElementById('hint'); this.readout = document.getElementById('t-readout');
-    this.bind('pause', () => this.togglePause()); this.bind('hud-mute', () => this.toggleMute()); this.bind('reset', () => this.launch());
+    this.bind('pause', () => { if (this.netMatch) this.toggleOnlineOverlay(); else this.togglePause(); }); this.bind('hud-mute', () => this.toggleMute()); this.bind('reset', () => { if (!this.netMatch) this.launch(); });
     if (practice) this.bindTraining();
   }
   private trainingPanel() {
@@ -262,6 +293,14 @@ export class ArenaApp {
   /** Contextual throw help: only while someone is holding or being held, and always in training. Updated on change only. */
   private updateHint() {
     if (!this.hint) return;
+    if (this.netMatch) {
+      let text = '', live = false;
+      for (const fighter of this.sim.fighters) if (fighter.hold) { text = THROW_HINT.p1; live = true; break; }
+      if (!live) for (const fighter of this.sim.fighters) if (fighter.heldBy !== null) { text = 'Tap M now to break the grab!'; live = true; break; }
+      if (this.hint.textContent !== text) this.hint.textContent = text;
+      this.hint.classList.toggle('live', live); this.hint.style.display = text ? 'block' : 'none';
+      return;
+    }
     const human = (slot: number) => slot === 0 || this.mode === 'versus' || this.mode === 'training';
     let text = '', live = false;
     for (const f of this.sim.fighters) if (f.hold && human(f.slot)) { text = f.slot ? THROW_HINT.p2 : THROW_HINT.p1; live = true; break; }
@@ -285,7 +324,7 @@ export class ArenaApp {
     this.comboUntil[slot] = done ? 1.5 : Infinity;
   }
   private togglePause(force?: boolean) {
-    if (this.screen !== 'match' || this.sim.finished) return;
+    if (this.netMatch || this.screen !== 'match' || this.sim.finished) return;
     this.paused = force ?? !this.paused; this.input.clear(); this.stepper.reset(); this.sim.clearInputs();
     if (!this.paused) { this.ui.querySelector('.overlay')?.remove(); this.input.active = true; this.audio.unlock(); return; }
     this.input.active = false; this.pauseMenu();
@@ -344,45 +383,382 @@ export class ArenaApp {
     const commands = this.input.sample(); if (this.paused) return false;
     const before = this.sim.countdown; this.view.captureTick(this.sim); this.sim.step(commands); this.lastCommands = commands;
     if (before > 0 && !this.sim.countdown) this.goTime = 0.65;
-    for (const event of this.sim.events) {
-      this.view.event(event, this.sim); this.audio.effect(event.type);
-      if (event.type === 'ledge') this.view.snapFighter(event.slot);
-      const name = ROSTER[this.sim.fighters[event.slot].character].name.toUpperCase();
-      switch (event.type) {
-        case 'pickup': this.showToast(event.text ?? 'PICKUP'); break;
-        case 'break': this.showToast('SHIELD BROKEN!'); break;
-        case 'ledge': this.showToast('BACK IN BUSINESS / LEDGE RECOVERY'); break;
-        case 'tech': this.showToast(`${name} BREAKS THE GRAB!`); break;
-        case 'throwBreak': this.showToast('THROW BREAK!'); break;
-        case 'counter': this.showToast(`${name} / REBUTTAL!`); break;
-        case 'ko': this.showToast(`${name} / OUT OF OFFICE`); this.comboUntil = [0, 0]; for (let i = 0; i < 2; i++) { this.hud[i].combo.className = `combo-pop ${i ? 'p2' : ''}`; this.hud[i].combo.textContent = ''; } break;
-        case 'combo': this.showCombo(event.slot, event.value ?? 2, event.text ?? '0', false); break;
-        case 'comboEnd': this.showCombo(event.slot, event.value ?? 2, event.text ?? '0', true); break;
-        case 'hit': case 'pummel': case 'armor': {
-          const point = this.view.project(event.x, event.y + 0.9), popup = document.createElement('div'); popup.className = `damage-pop${event.type === 'hit' ? '' : ' small'}`; popup.textContent = `+${Math.round(event.value ?? 0)}`;
-          popup.style.left = `${point.x}px`; popup.style.top = `${point.y}px`; this.ui.append(popup); setTimeout(() => popup.remove(), 700); break;
-        }
-        default: break;
-      }
-    }
+    for (const event of this.sim.events) this.dispatchEvent(event);
     this.sim.events.length = 0;
     return true;
   }
+  private dispatchEvent(event: GameEvent) {
+    this.view.event(event, this.sim); this.audio.effect(event.type);
+    if (event.type === 'ledge') this.view.snapFighter(event.slot);
+    const name = ROSTER[this.sim.fighters[event.slot].character].name.toUpperCase();
+    switch (event.type) {
+      case 'pickup': this.showToast(event.text ?? 'PICKUP'); break;
+      case 'break': this.showToast('SHIELD BROKEN!'); break;
+      case 'ledge': this.showToast('BACK IN BUSINESS / LEDGE RECOVERY'); break;
+      case 'tech': this.showToast(`${name} BREAKS THE GRAB!`); break;
+      case 'throwBreak': this.showToast('THROW BREAK!'); break;
+      case 'counter': this.showToast(`${name} / REBUTTAL!`); break;
+      case 'ko': this.showToast(`${name} / OUT OF OFFICE`); this.comboUntil = [0, 0]; for (let i = 0; i < 2; i++) { this.hud[i].combo.className = `combo-pop ${i ? 'p2' : ''}`; this.hud[i].combo.textContent = ''; } break;
+      case 'combo': this.showCombo(event.slot, event.value ?? 2, event.text ?? '0', false); break;
+      case 'comboEnd': this.showCombo(event.slot, event.value ?? 2, event.text ?? '0', true); break;
+      case 'hit': case 'pummel': case 'armor': {
+        const point = this.view.project(event.x, event.y + 0.9), popup = document.createElement('div'); popup.className = `damage-pop${event.type === 'hit' ? '' : ' small'}`; popup.textContent = `+${Math.round(event.value ?? 0)}`;
+        popup.style.left = `${point.x}px`; popup.style.top = `${point.y}px`; this.ui.append(popup); setTimeout(() => popup.remove(), 700); break;
+      }
+      default: break;
+    }
+  }
   private frame(now: number) {
     this.animationFrame = requestAnimationFrame(t => this.frame(t));
-    const dt = this.last ? Math.min(0.08, (now - this.last) / 1000) : 0; this.last = now;
+    const raw = this.last ? (now - this.last) / 1000 : 0; this.last = now;
+    const dt = Math.min(0.08, raw);
+    const online = !!this.netMatch && this.screen === 'match';
     if (!this.paused) this.visualTime += dt;
     const playing = this.screen === 'match' && !this.paused;
-    const stepping = playing && this.mode === 'training' && this.training.step;
-    if (playing && !this.sim.finished) {
+    const stepping = playing && this.mode === 'training' && this.training.step && !online;
+    if (playing && !this.sim.finished && !online) {
       if (stepping) { this.stepper.reset(); while (this.stepRequests > 0 && !this.paused) { this.stepRequests--; this.tick(); } }
       else this.stepper.advance(dt, () => this.tick() ? undefined : false);
     }
-    if (playing && this.sim.finished) { this.resultDelay += dt; if (this.resultDelay > 1) this.results(); }
-    const menu = this.screen === 'home' || this.screen === 'select';
-    this.view.render(this.sim, { dt, time: this.visualTime, menu, alpha: this.paused || menu || this.sim.finished || stepping ? 1 : this.stepper.alpha, paused: this.paused, stepping });
+    if (online && !this.netResult && !this.netInterrupted) this.pumpOnline(raw);
+    if (playing && this.sim.finished && !online) { this.resultDelay += dt; if (this.resultDelay > 1) this.results(); }
+    if (online && (this.netResult || this.netInterrupted)) { this.resultDelay += dt; if (this.resultDelay > 0.6 && this.screen === 'match') this.onlineResults(); }
+    const menu = this.screen === 'home' || this.screen === 'select' || this.screen === 'lobby';
+    const onlineAlpha = Math.min(1, this.netAccumulator / (1 / 60));
+    this.view.render(this.sim, { dt, time: this.visualTime, menu, alpha: online ? onlineAlpha : this.paused || menu || this.sim.finished || stepping ? 1 : this.stepper.alpha, paused: this.paused, stepping });
     if (this.screen === 'match' || this.screen === 'result') this.updateHud(this.paused ? 0 : dt);
-    this.audio.update(playing && !this.sim.finished);
+    if (online) this.updateNetPill();
+    this.audio.update(playing && !this.sim.finished && !this.netInterrupted);
+  }
+
+  /** Online entry from the home screen. A room code in the address opens the join form. */
+  openOnline(code?: string | null, autoJoin = false) {
+    if (!onlineEnabled()) return;
+    this.screen = 'lobby'; this.paused = false; this.modalReturn = null; this.input.active = false; this.input.clear();
+    this.netStatus = 'Connecting…';
+    this.netPending = autoJoin && code ? { t: 'join', code } : null;
+    this.ui.innerHTML = onlineGateMarkup(brand, code ? code : '', this.netStatus, this.settings.muted ? 'SOUND OFF' : 'SOUND ON');
+    this.bindOnlineGate();
+    this.ensureNet();
+  }
+
+  installOnlineFixture(frames: Record<string, Partial<Controls>>) {
+    if (!this.testMode) return;
+    this.netFixture = new Map(Object.entries(frames).map(([frame, partial]) => [Number(frame), { ...noInput(), ...partial }]));
+  }
+
+  onlineDebug(frame?: number) {
+    const session = this.netSession;
+    const confirmed = session?.confirmed ?? 0;
+    const at = typeof frame === 'number' ? frame : confirmed;
+    return {
+      tick: this.sim.tick, confirmed, hash: session?.hashAt(at) ?? null,
+      waiting: session?.waiting ?? false, interrupted: session?.interrupted ?? this.netInterrupted,
+      rtt: this.net?.rtt ?? null, epoch: this.netMatch?.epoch ?? 0, matchId: this.netMatch?.matchId ?? '',
+      status: this.netView?.status ?? '', slot: this.netView?.slot ?? null,
+    };
+  }
+
+  private onlineHomeAction(): string {
+    if (onlineEnabled()) return button('online', 'ONLINE 1V1');
+    const hosted = publicGameUrl();
+    return hosted ? `<a class="ghost-btn" href="${hosted.replace(/"/g, '')}">PLAY ONLINE</a>` : '';
+  }
+
+  private ensureNet() {
+    if (this.net) return;
+    this.netWelcomed = false;
+    this.netReconnects = 0;
+    const client = new OnlineClient();
+    client.onMessage = message => this.onNet(message);
+    client.onClose = () => this.onNetClose();
+    this.net = client;
+    client.connect(relayUrl());
+  }
+
+  private shutdownNet() {
+    this.net?.leave();
+    this.net = null;
+    this.netView = null;
+    this.netMatch = null;
+    this.netSession = null;
+    this.netStarted = false;
+    this.netOverlay = false;
+    this.netResult = null;
+    this.netInterrupted = null;
+    this.netWelcomed = false;
+    this.netPending = null;
+    this.netResultSent = false;
+    this.netAccumulator = 0;
+  }
+
+  private bindOnlineGate() {
+    this.bind('back', () => this.home());
+    this.bind('mute', () => this.toggleMute());
+    this.bind('create-room', () => { this.netPending = 'create'; this.flushPending(); });
+    this.bind('join-room', () => {
+      const raw = (document.getElementById('join-code') as HTMLInputElement | null)?.value ?? '';
+      this.netPending = { t: 'join', code: raw };
+      this.flushPending();
+    });
+  }
+
+  private flushPending() {
+    if (!this.netWelcomed || !this.net || !this.netPending) return;
+    const pending = this.netPending;
+    this.netPending = null;
+    if (pending === 'create') this.net.send({ t: 'create' });
+    else this.net.send({ t: 'join', code: pending.code });
+  }
+
+  private onNet(message: ServerMessage) {
+    switch (message.t) {
+      case 'welcome': this.netWelcomed = true; this.netReconnects = 0; this.flushPending(); break;
+      case 'room': this.onRoom(message.view); break;
+      case 'prepare': this.onPrepare(message.match); break;
+      case 'start': this.onStart(message); break;
+      case 'inputs': this.onInputs(message); break;
+      case 'hash': this.onHash(message); break;
+      case 'result': this.netResult = message; this.resultDelay = 0; break;
+      case 'abort': this.netInterrupted = message.reason; this.netSession?.interrupt(message.reason); this.resultDelay = 0; break;
+      case 'error': this.netStatus = message.message || ERROR_TEXT[message.code]; this.setOnlineStatus(this.netStatus); break;
+      default: break;
+    }
+  }
+
+  private onNetClose() {
+    if (!this.net || this.screen === 'home') return;
+    if (this.net.session && this.netReconnects < 1 && this.netMatch) {
+      this.netReconnects++;
+      this.netStatus = 'Reconnecting…';
+      this.setOnlineStatus(this.netStatus);
+      this.net.connect(relayUrl(), true);
+      return;
+    }
+    if (!this.netInterrupted && !this.netResult) {
+      this.netInterrupted = 'disconnect';
+      this.resultDelay = 0;
+      if (this.screen === 'lobby') this.setOnlineStatus('The connection dropped.');
+    }
+  }
+
+  private onRoom(view: RoomView) {
+    this.netView = view;
+    if (view.status === 'lobby') {
+      this.netMatch = null;
+      this.netSession = null;
+      this.netStarted = false;
+      this.netResult = null;
+      this.netInterrupted = null;
+      this.netResultSent = false;
+      this.netOverlay = false;
+      this.showLobby();
+    }
+  }
+
+  private showLobby() {
+    const view = this.netView;
+    if (!view) return;
+    this.screen = 'lobby';
+    this.input.active = false;
+    this.ui.innerHTML = lobbyMarkup({
+      brand, view, names: ROSTER.map(f => f.name), portraits: this.portraits, accents: FIGHTER_ACCENTS, roles: ROLES,
+      professions: ROSTER.map(f => f.profession), stageNames: STAGE_NAMES, stageTags: STAGE_TAGS,
+      invite: inviteUrl(view.code), status: this.netStatus, soundLabel: this.settings.muted ? 'SOUND OFF' : 'SOUND ON',
+      qualityOptions: QUALITY_TIERS.map(tier => `<option value="${tier}">${QUALITY[tier].label}</option>`).join(''),
+      quality: this.settings.quality, reduced: this.settings.reducedMotion, shake: this.settings.cameraShake, music: this.settings.music,
+    });
+    const quality = document.getElementById('quality') as HTMLSelectElement | null;
+    if (quality) quality.value = this.settings.quality;
+    this.bind('mute', () => { this.toggleMute(); const label = this.settings.muted ? 'SOUND OFF' : 'SOUND ON'; const el = document.getElementById('mute'); if (el) el.textContent = label; });
+    this.bind('leave-room', () => this.home());
+    this.bind('copy-code', () => this.copyText((document.getElementById('room-code') as HTMLInputElement).value));
+    this.bind('copy-link', () => this.copyText((document.getElementById('invite-link') as HTMLInputElement).value));
+    this.bind('ready', () => { if (this.net && this.netView) this.net.send({ t: 'ready', rev: this.netView.rev, ready: !this.netView.ready[this.netView.slot] }); });
+    for (const card of this.ui.querySelectorAll<HTMLButtonElement>('[data-fighter]')) card.onclick = () => {
+      if (this.net && this.netView) this.net.send({ t: 'config', rev: this.netView.rev, fighter: Number(card.dataset.fighter) });
+    };
+    for (const card of this.ui.querySelectorAll<HTMLButtonElement>('[data-stage]')) card.onclick = () => {
+      if (this.net && this.netView?.slot === 0) this.net.send({ t: 'config', rev: this.netView.rev, stage: Number(card.dataset.stage) });
+    };
+    const items = document.getElementById('items') as HTMLInputElement | null;
+    if (items) items.onchange = () => { if (this.net && this.netView?.slot === 0) this.net.send({ t: 'config', rev: this.netView.rev, items: items.checked }); };
+    this.bindLocalGraphics();
+  }
+
+  private bindLocalGraphics() {
+    const quality = document.getElementById('quality');
+    if (quality) quality.onchange = event => { this.settings.quality = (event.target as HTMLSelectElement).value as QualityTier; this.view.setQuality(this.settings.quality); this.save(); };
+    const reduced = document.getElementById('reduced');
+    if (reduced) reduced.onchange = event => { this.settings.reducedMotion = (event.target as HTMLInputElement).checked; this.view.setReducedMotion(this.settings.reducedMotion); this.save(); };
+    const shake = document.getElementById('shake');
+    if (shake) shake.onchange = event => { this.settings.cameraShake = (event.target as HTMLInputElement).checked; this.view.setCameraShake(this.settings.cameraShake); this.save(); };
+    const music = document.getElementById('music');
+    if (music) music.onchange = event => { this.settings.music = (event.target as HTMLInputElement).checked; this.audio.music = this.settings.music; this.save(); };
+  }
+
+  private onPrepare(match: MatchDescriptor) {
+    this.netMatch = match;
+    this.netSession = null;
+    this.netStarted = false;
+    this.netResult = null;
+    this.netInterrupted = null;
+    this.netResultSent = false;
+    this.netOverlay = false;
+    this.netAccumulator = 0;
+    this.resultDelay = 0;
+    this.launch({ fighters: [...match.fighters], stage: match.stage, mode: 'versus', items: match.items, seed: match.seed });
+    this.net?.send({ t: 'loaded', matchId: match.matchId });
+    this.setOnlineStatus('Loading the same match…');
+  }
+
+  private onStart(message: Extract<ServerMessage, { t: 'start' }>) {
+    if (!this.netMatch || message.matchId !== this.netMatch.matchId || message.epoch !== this.netMatch.epoch || !this.netView) return;
+    this.netStartAt = message.startAt;
+    this.netStarted = false;
+    this.netAccumulator = 0;
+    this.netSession = new RollbackSession({
+      sim: this.sim, localSlot: this.netView.slot, matchId: message.matchId, epoch: message.epoch, now: () => this.net?.now() ?? Date.now(),
+    });
+  }
+
+  private onInputs(message: Extract<ServerMessage, { t: 'inputs' }>) {
+    const session = this.netSession;
+    if (!session || message.matchId !== session.matchId || message.epoch !== session.epoch) return;
+    for (const frame of message.frames) {
+      if (message.slot === session.localSlot) session.ackLocal(frame.n, frame.i);
+      else session.pushRemote(frame.n, frame.i);
+    }
+  }
+
+  private onHash(message: Extract<ServerMessage, { t: 'hash' }>) {
+    const session = this.netSession;
+    if (!session || message.matchId !== session.matchId || message.epoch !== session.epoch || message.slot === session.localSlot) return;
+    session.noteRemoteHash(message.frame, message.hash);
+  }
+
+  private pumpOnline(rawDt: number) {
+    const session = this.netSession;
+    const match = this.netMatch;
+    if (!session || !match || !this.net) return;
+    if (!this.netStarted) {
+      if (this.net.now() < this.netStartAt) return;
+      this.netStarted = true;
+      this.netAccumulator = 0;
+    }
+    const step = 1 / 60;
+    this.netAccumulator += rawDt;
+    let guard = 0;
+    while (guard++ < 8 && this.netAccumulator >= step && !session.interrupted) {
+      if (session.wantsLocal()) session.submitLocal(this.onlineControls());
+      const status = session.stepOne({
+        beforeLiveStep: sim => this.view.captureTick(sim),
+        afterCorrection: () => this.view.correct(),
+      });
+      if (status !== 'stepped') { this.netAccumulator = Math.min(this.netAccumulator, step); break; }
+      this.netAccumulator -= step;
+    }
+    this.flushSession(session, match);
+    if (session.interrupted && !this.netInterrupted) this.failOnline(session.interrupted);
+    else if (this.netAccumulator > 3) this.failOnline('stall');
+  }
+
+  private onlineControls(): Controls {
+    const session = this.netSession;
+    const scripted = session ? this.netFixture?.get(session.nextLocalFrame) : undefined;
+    if (scripted) { this.input.pressed.clear(); return scripted; }
+    if (this.netOverlay || !this.input.active) { this.input.pressed.clear(); return noInput(); }
+    return this.input.sampleLocal();
+  }
+
+  private flushSession(session: RollbackSession, match: MatchDescriptor) {
+    const frames = session.takeOutbound().map(packet => ({ n: packet.frame, i: packet.input }));
+    if (frames.length) this.net?.send({ t: 'inputs', matchId: match.matchId, epoch: match.epoch, frames });
+    const hash = session.takeHash();
+    if (hash) this.net?.send({ t: 'hash', matchId: match.matchId, epoch: match.epoch, frame: hash.frame, hash: hash.hash });
+    for (const event of session.drainEvents()) this.dispatchEvent(event.event);
+    const result = session.confirmedResult();
+    if (result && !this.netResultSent) {
+      this.netResultSent = true;
+      const winner = result.winner === 0 || result.winner === 1 ? result.winner : -1;
+      this.net?.send({ t: 'result', matchId: match.matchId, epoch: match.epoch, frame: result.frame, winner, hash: result.hash });
+    }
+  }
+
+  private failOnline(reason: string) {
+    this.netInterrupted = reason;
+    this.netSession?.interrupt(reason);
+    this.resultDelay = 0;
+    if (reason === 'stall') this.net?.drop();
+  }
+
+  private toggleOnlineOverlay() {
+    if (this.screen !== 'match' || !this.netMatch) return;
+    this.netOverlay = !this.netOverlay;
+    this.ui.querySelector('.overlay')?.remove();
+    if (!this.netOverlay) return;
+    const overlay = document.createElement('div');
+    overlay.className = 'overlay';
+    overlay.innerHTML = `<section class="modal"><div class="caps">STILL LIVE</div><h2>The fight keeps going.</h2><p>This menu is only on your screen. Your fighter holds still until you come back. Esc returns to the match.</p><div class="modal-actions">${button('online-resume', 'BACK TO THE FIGHT', true)}${button('online-forfeit', 'FORFEIT MATCH')}${button('online-leave', 'LEAVE ROOM')}</div><div class="modal-actions">${button('help', 'CONTROLS')}${button('pause-mute', this.settings.muted ? 'SOUND OFF' : 'SOUND ON')}${button('fullscreen', 'FULLSCREEN')}</div></section>`;
+    this.ui.append(overlay);
+    this.bind('online-resume', () => this.toggleOnlineOverlay());
+    this.bind('online-forfeit', () => { if (this.net && this.netMatch) this.net.send({ t: 'forfeit', matchId: this.netMatch.matchId, epoch: this.netMatch.epoch }); });
+    this.bind('online-leave', () => this.home());
+    this.bind('help', () => this.controls(() => { this.netOverlay = false; this.toggleOnlineOverlay(); }));
+    this.bind('pause-mute', () => this.toggleMute());
+    this.bind('fullscreen', () => this.fullscreen());
+  }
+
+  private onlineResults() {
+    this.screen = 'result';
+    this.netOverlay = false;
+    this.input.active = false;
+    this.ui.querySelector('.overlay')?.remove();
+    const result = this.netResult;
+    if (this.netInterrupted || !result || result.winner < 0) {
+      const overlay = document.createElement('div');
+      overlay.className = 'overlay';
+      const reason = this.netInterrupted === 'desync' ? 'The two games disagreed, so nobody takes the win.'
+        : this.netInterrupted === 'stall' ? 'The match fell too far behind, so the round was stopped with no winner.'
+        : 'The connection dropped. Nobody takes the win.';
+      overlay.innerHTML = `<section class="modal results-modal"><div class="caps">ROUND STOPPED</div><h2>No winner.</h2><p>${reason}</p><div class="modal-actions">${button('back-lobby', 'BACK TO LOBBY', true)}${button('home', 'MAIN MENU')}</div></section>`;
+      this.ui.append(overlay);
+      this.bind('back-lobby', () => { if (!this.net?.send({ t: 'lobby' })) this.home(); });
+      this.bind('home', () => this.home());
+      return;
+    }
+    const winner = result.winner as 0 | 1;
+    const character = this.sim.fighters[winner].character;
+    const title = result.reason === 'forfeit' ? `${ROSTER[character].name} wins by forfeit.` : `${ROSTER[character].name} takes the round.`;
+    const overlay = document.createElement('div');
+    overlay.className = 'overlay';
+    overlay.innerHTML = `<section class="modal results-modal"><div class="caps">${result.reason === 'forfeit' ? 'FORFEIT' : 'MARKET DISRUPTED / MATCH COMPLETE'}</div><h2>${title}</h2><div class="result-winner"><img src="${this.portraits[character]}" alt=""><div><strong>${ROSTER[character].name}</strong></div></div><p>“${ROSTER[character].winLine}”</p><div class="modal-actions">${button('online-rematch', 'REMATCH', true)}${button('back-lobby', 'BACK TO LOBBY')}${button('home', 'LEAVE ROOM')}</div></section>`;
+    this.ui.append(overlay);
+    this.bind('online-rematch', () => { this.netResultSent = false; this.net?.send({ t: 'rematch' }); this.setOnlineStatus('Waiting for a rematch…'); });
+    this.bind('back-lobby', () => { if (!this.net?.send({ t: 'lobby' })) this.home(); });
+    this.bind('home', () => this.home());
+  }
+
+  private updateNetPill() {
+    const pill = document.getElementById('net-pill');
+    if (!pill || !this.net) return;
+    const rtt = this.net.rtt === null ? '' : ` ${Math.round(this.net.rtt)} ms`;
+    const waiting = this.netSession?.waiting ? 'WAITING' : this.netStarted ? 'LIVE' : 'STARTING';
+    const text = `${waiting}${rtt}`;
+    if (pill.textContent !== text) pill.textContent = text;
+    if (this.netSession?.waiting) this.showToast('WAITING FOR OPPONENT');
+  }
+
+  private setOnlineStatus(text: string) {
+    this.netStatus = text;
+    const el = document.getElementById('online-status');
+    if (el) el.textContent = text;
+  }
+
+  private copyText(value: string) {
+    const done = () => this.setOnlineStatus('Copied. The code field stays selectable if paste is blocked.');
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(value).then(done).catch(done);
+    else done();
   }
 }
 

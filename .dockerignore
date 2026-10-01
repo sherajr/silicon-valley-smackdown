@@ -1,0 +1,10 @@
+node_modules
+dist
+dist-server
+release
+.git
+.env
+test-results
+playwright-report
+diagnostics
+downloads

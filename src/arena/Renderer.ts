@@ -293,6 +293,20 @@ export class ArenaRenderer {
     try { this.renderer.compile(this.scene, this.camera); this.post?.render(0); } catch (error) { console.warn('Shader warm-up skipped:', error); }
   }
 
+  /**
+   * A rollback restored an earlier simulation state. Drop predicted motion trails and draw the
+   * restored fighters on the next frame. Effects that already played for confirmed frames stay.
+   */
+  correct() {
+    this.interp.reset();
+    this.interp.markSnap(0);
+    this.interp.markSnap(1);
+    this.trails.clear();
+    this.drawn[0].valid = false;
+    this.drawn[1].valid = false;
+    for (const rendered of this.rendered) rendered.snapped = true;
+  }
+
   /** Call right before every `sim.step()` so move ages and projectile paths can be drawn between ticks. */
   captureTick(sim: ArenaSim) { this.interp.capture(sim); }
   /** The simulation moved this fighter discontinuously (a ledge grab); draw it there without a sweep. */

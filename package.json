@@ -27,7 +27,12 @@
     "package:zip": "npm run build:portable && node scripts/package-arena.mjs",
     "test:arena": "playwright test --config playwright.arena.config.ts",
     "evidence:arena": "node scripts/arena-evidence.mjs",
-    "perf:arena": "node scripts/arena-perf.mjs"
+    "perf:arena": "node scripts/arena-perf.mjs",
+    "dev:online": "node scripts/dev-online.mjs",
+    "build:server": "node scripts/build-server.mjs",
+    "start:online": "node dist-server/index.js",
+    "test:online": "vitest run src/arena/snapshot.test.ts src/arena/net/RollbackSession.test.ts server/rooms.test.ts shared/fingerprint.test.ts",
+    "test:online:e2e": "playwright test --config playwright.online.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
@@ -36,10 +41,13 @@
     "electron-builder": "26.15.3",
     "typescript": "~6.0.2",
     "vite": "^8.3.0",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.0",
+    "@types/node": "^22.15.0",
+    "@types/ws": "^8.18.1"
   },
   "dependencies": {
     "phaser": "^4.2.1",
-    "three": "^0.186.0"
+    "three": "^0.186.0",
+    "ws": "^8.18.3"
   }
 }

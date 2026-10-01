@@ -35,24 +35,52 @@ export class ArenaInput {
    * for this tick, so a quick tap of W in a W+B chord cannot be lost to a slow frame.
    */
   sample(): [Controls, Controls] {
-    const pads = typeof navigator.getGamepads === 'function' ? Array.from(navigator.getGamepads()).filter((p): p is Gamepad => !!p) : [];
-    const commands = MAPS.map((m, i) => {
-      const c = noInput();
-      const held = (a: string[]) => a.some(k => this.held.has(k) || this.pressed.has(k)), pressed = (a: string[]) => a.some(k => this.pressed.has(k));
-      c.x = Number(held(m.right)) - Number(held(m.left)); c.up = held(m.up); c.down = held(m.down);
-      c.jump = pressed(m.jump); c.attack = pressed(m.attack); c.special = pressed(m.special); c.grab = pressed(m.grab); c.shield = held(m.shield);
-      const pad = pads[i];
-      if (pad) {
-        const prev = this.padPrev.get(pad.index) ?? [], on = (b: number) => !!pad.buttons[b]?.pressed, edge = (b: number) => on(b) && !prev[b];
-        const axis = pad.axes[0] ?? 0; if (Math.abs(axis) > 0.25) c.x = Math.sign(axis); if (on(14)) c.x = -1; if (on(15)) c.x = 1;
-        c.up ||= on(12) || (pad.axes[1] ?? 0) < -0.5; c.down ||= on(13) || (pad.axes[1] ?? 0) > 0.5;
-        c.jump ||= edge(0) || edge(12); c.attack ||= edge(2); c.special ||= edge(1); c.grab ||= edge(3);
-        c.shield ||= on(4) || on(6) || on(7);
-        if (edge(9)) this.onPause();
-        this.padPrev.set(pad.index, pad.buttons.map(b => b.pressed));
-      }
-      return c;
-    }) as [Controls, Controls];
-    this.pressed.clear(); return commands;
+    const pads = this.gamepads();
+    const commands = MAPS.map((map, i) => this.readMap(map, pads[i])) as [Controls, Controls];
+    this.pressed.clear();
+    return commands;
+  }
+
+  /**
+   * Online play: this browser is one fighter. Player 1 keys and the first connected gamepad are used.
+   * Player 2 keys and a second pad are ignored so two machines do not share a keyboard mapping.
+   */
+  sampleLocal(): Controls {
+    const controls = this.readMap(MAPS[0], this.gamepads()[0]);
+    this.pressed.clear();
+    return controls;
+  }
+
+  private gamepads(): Gamepad[] {
+    return typeof navigator.getGamepads === 'function' ? Array.from(navigator.getGamepads()).filter((pad): pad is Gamepad => !!pad) : [];
+  }
+
+  private readMap(map: typeof MAPS[number], pad: Gamepad | undefined): Controls {
+    const controls = noInput();
+    const held = (codes: string[]) => codes.some(code => this.held.has(code) || this.pressed.has(code));
+    const pressed = (codes: string[]) => codes.some(code => this.pressed.has(code));
+    controls.x = Number(held(map.right)) - Number(held(map.left));
+    controls.up = held(map.up); controls.down = held(map.down);
+    controls.jump = pressed(map.jump); controls.attack = pressed(map.attack); controls.special = pressed(map.special);
+    controls.grab = pressed(map.grab); controls.shield = held(map.shield);
+    if (pad) {
+      const prev = this.padPrev.get(pad.index) ?? [];
+      const on = (button: number) => !!pad.buttons[button]?.pressed;
+      const edge = (button: number) => on(button) && !prev[button];
+      const axis = pad.axes[0] ?? 0;
+      if (Math.abs(axis) > 0.25) controls.x = Math.sign(axis);
+      if (on(14)) controls.x = -1;
+      if (on(15)) controls.x = 1;
+      controls.up ||= on(12) || (pad.axes[1] ?? 0) < -0.5;
+      controls.down ||= on(13) || (pad.axes[1] ?? 0) > 0.5;
+      controls.jump ||= edge(0) || edge(12);
+      controls.attack ||= edge(2);
+      controls.special ||= edge(1);
+      controls.grab ||= edge(3);
+      controls.shield ||= on(4) || on(6) || on(7);
+      if (edge(9)) this.onPause();
+      this.padPrev.set(pad.index, pad.buttons.map(button => button.pressed));
+    }
+    return controls;
   }
 }
