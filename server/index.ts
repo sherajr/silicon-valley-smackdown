@@ -41,6 +41,11 @@ export async function startOnlineServer(options: ServerOptions = {}) {
   const sockets = new Set<WebSocket>();
 
   const http = createServer((req, res) => {
+    // Invite links carry the room code, so never send the address on as a referrer; and no framing by other sites.
+    res.setHeader('referrer-policy', 'no-referrer');
+    res.setHeader('x-content-type-options', 'nosniff');
+    res.setHeader('x-frame-options', 'DENY');
+    res.setHeader('content-security-policy', "frame-ancestors 'none'");
     try { handleHttp(req, res); }
     catch (error) {
       console.error('request failed', error instanceof Error ? error.message : 'error');

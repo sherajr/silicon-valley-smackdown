@@ -22,6 +22,8 @@ Open `http://127.0.0.1:5173/` in two profiles, or one normal window and one priv
 
 `npm run build:server` writes `dist-server/`. `npm start:online` serves the built game and the socket from one port (`PORT`, default 8787). Put TLS in front of that port if players connect over the public internet. The browser then uses `wss` on the same host. Do not run a second copy of the server behind a load balancer: rooms are not shared between processes.
 
+On Fly.io, `fly.toml` holds the settings. Deploy with `fly deploy --ha=false` so only one machine runs. Fly handles TLS, and a machine with no players stops and wakes on the next visit. `TRUST_PROXY=fly` makes the per-address limits read Fly's `Fly-Client-IP` header. Do not set it anywhere else, because there a client could send that header itself.
+
 `ALLOWED_ORIGINS` is an optional comma-separated list. Browsers on the same host, and on localhost, are accepted either way. `BASE_PATH` prefixes both the site and the `/ws` route. `ROOM_TTL_MS` and `REJOIN_GRACE_MS` change how long an idle lobby and a dropped seat last.
 
 The portable `PLAY.html` build never opens a socket. Its content security policy keeps `connect-src 'none'`. Online play is hidden there. A hosted link appears only when `VITE_PUBLIC_GAME_URL` is an `http` or `https` address set at build time.
