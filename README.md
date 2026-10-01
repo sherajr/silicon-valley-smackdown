@@ -10,7 +10,7 @@ The original traditional fighting game remains available as **Classic** at `?cla
 
 Extract `Silicon-Valley-Smackdown-Arena.zip`, then open **PLAY.html** in Chrome, Edge or Firefox. No installation, server, Node.js, internet connection, account or ROM is needed. The self-contained browser build includes all six Arena characters, all arenas and synthesized audio. `Source/` contains the editable project.
 
-WebGL 2 with hardware acceleration is required. The ZIP is a portable browser game, not a native `.exe` installer. Turn off **High quality shadows** in match setup on slower hardware.
+WebGL 2 with hardware acceleration is required. The ZIP is a portable browser game, not a native `.exe` installer. Choose **Balanced** or **Performance** under *Graphics* in match setup on slower hardware, and turn on **Reduced motion** or turn off **Camera shake** if you prefer a calmer picture. See [the graphics notes](docs/arena-graphics.md).
 
 ## Controls
 
@@ -63,4 +63,4 @@ npm run dev
 
 For browser tests, install a Playwright Chromium browser with `npx playwright install chromium`. Set `SVS_CHROMIUM` to use an existing executable. `SVS_PORTABLE=1 npm run test:arena` tests the built file directly. Hardware-restricted CI can set `SVS_SANDBOX_DEVICES=1` to use synthetic device state.
 
-See [Arena implementation notes](docs/arena-edition.md) for module responsibilities, mechanics, packaging and practical limits, and [the gameplay notes](docs/arena-gameplay-pass.md) for the fixes, character differences, tested combos and a manual test guide. `src/arena/Simulation.ts` is deterministic and independent of the browser/renderer. Platform data in `data.ts` drives collision, ledges and the visible stage. Classic's original simulation stays separate.
+See [Arena implementation notes](docs/arena-edition.md) for module responsibilities, mechanics, packaging and practical limits, [the graphics notes](docs/arena-graphics.md) for the rendering pass (flicker fix, lighting, presets, measurements), and [the gameplay notes](docs/arena-gameplay-pass.md) for the fixes, character differences, tested combos and a manual test guide. `src/arena/Simulation.ts` is deterministic and independent of the browser/renderer. Platform data in `data.ts` drives collision, ledges and the visible stage. Classic's original simulation stays separate.

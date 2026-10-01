@@ -26,7 +26,9 @@ with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED, compresslevel=8) as z:
         # SOURCE-ORIGIN.txt is written once below; adding the tracked copy as well would create a duplicate ZIP member.
         if p.is_file() and p != root / 'SOURCE-ORIGIN.txt' and not any(part in {'release', '.scratch', 'node_modules', '.git'} for part in p.relative_to(root).parts):
             z.write(p, f'{game.name}/Source/{p.relative_to(root).as_posix()}')
-    z.writestr(f'{game.name}/Source/SOURCE-ORIGIN.txt', 'Based on sherajr/silicon-valley-smackdown, main commit 50a2cf2 (Arena Edition V2, PR #15),\nplus the gameplay pass described in docs/arena-gameplay-pass.md.\nArena Edition implements an independent 3D platform-fighter mode.\n')
+    # The text comes from the tracked file so the two can never drift apart.
+    origin = root / 'SOURCE-ORIGIN.txt'
+    z.writestr(f'{game.name}/Source/SOURCE-ORIGIN.txt', origin.read_text(encoding='utf-8') if origin.is_file() else 'Arena Edition source, based on sherajr/silicon-valley-smackdown.\n')
 with zipfile.ZipFile(archive) as z:
     bad = z.testzip()
     if bad:

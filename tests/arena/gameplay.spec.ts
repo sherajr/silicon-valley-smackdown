@@ -11,6 +11,15 @@ import path from 'node:path';
 const portable = process.env.SVS_PORTABLE === '1';
 const target = portable ? pathToFileURL(path.resolve('release/Silicon-Valley-Smackdown-Arena/PLAY.html')).href + '?arenaTest=1' : '/?arenaTest=1';
 const errors = new WeakMap<Page, string[]>();
+/**
+ * Holds a direction for a few ticks on both sides of a button press. A plain down/press/up lands within a couple of
+ * milliseconds, so one 16.7 ms simulation tick between the two key-downs consumes the direction before the button is
+ * seen and the chord silently loses it (roughly one run in twelve). This keeps the intent and removes the race.
+ */
+async function chord(page: Page, hold: string, press: string) {
+  await page.keyboard.down(hold); await page.waitForTimeout(60); await page.keyboard.press(press); await page.waitForTimeout(60); await page.keyboard.up(hold);
+}
+
 
 async function app(page: Page) {
   const list: string[] = []; errors.set(page, list); page.on('pageerror', e => list.push(e.message));
@@ -66,7 +75,7 @@ test('P1 grabs with M, holds, and throws on the release frame with a direction k
   await expect.poll(() => read<number | null>(page, 'p2.heldBy')).toBe(0);
   expect(await read<number>(page, 'p2.damage')).toBe(0);                      // the catch deals no damage
   await expect(page.locator('#hint')).toContainText('throw');                  // contextual help while holding
-  await page.keyboard.down('d'); await page.keyboard.press('m'); await page.keyboard.up('d');
+  await chord(page, 'd', 'm');
   await expect.poll(() => read<number>(page, 'p2.damage')).toBe(9);
   expect(await read<number>(page, 'p2.vx')).toBeGreaterThan(0);                // thrown forward
   expect(await read<number | null>(page, 'p2.heldBy')).toBeNull(); expect(await read<unknown>(page, 'p1.hold')).toBeNull();
@@ -79,7 +88,7 @@ test('P2 grabs with semicolon and back-throws with an arrow key', async ({ page 
   await page.keyboard.press(';');
   await expect.poll(() => read<number | null>(page, 'p1.heldBy')).toBe(1);
   expect(await read<number>(page, 'p1.damage')).toBe(0);
-  await page.keyboard.down('ArrowRight'); await page.keyboard.press(';'); await page.keyboard.up('ArrowRight');   // P2 faces left: right is back
+  await chord(page, 'ArrowRight', ';');                                          // P2 faces left: right is back
   await expect.poll(() => read<number>(page, 'p1.damage')).toBeGreaterThan(0);
   expect(await read<number>(page, 'p1.vx')).toBeGreaterThan(0);                // launched behind P2, away from where P2 faces
   noErrors(page);
@@ -206,7 +215,7 @@ test('every fighter can grab, pummel and throw without page errors, on every are
     await page.keyboard.press('m');
     await expect.poll(() => read<number | null>(page, 'p2.heldBy'), { timeout: 4000 }).toBe(0);
     await page.keyboard.press('v'); await page.waitForTimeout(150);
-    await page.keyboard.down('w'); await page.keyboard.press('m'); await page.keyboard.up('w');
+    await chord(page, 'w', 'm');
     await expect.poll(() => read<number>(page, 'p2.damage'), { timeout: 4000 }).toBeGreaterThan(0);
     await page.waitForTimeout(120);
   }

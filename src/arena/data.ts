@@ -11,6 +11,8 @@ export const ROSTER = [HUNTER, KEVIN, AL, PRIYA, CHAD, ELON];
 export const STAGE_NAMES = ['Castro Street', 'Sand Hill Road', 'Palo Alto'];
 export const STAGE_TAGS = ['COFFEE CLASH', 'HOSTILE TAKEOVER', 'LAUNCH NIGHT'];
 export const ACCENTS = ['#53ead4', '#ffa960', '#ae96ff'];
+/** One short playstyle label per fighter, for the selection cards. */
+export const ROLES = ['RUSHDOWN', 'ZONER', 'GRAPPLER', 'SPEEDSTER', 'CONTROL', 'HEAVY'];
 export const FIGHTER_ACCENTS = ['#57ebd6', '#70adff', '#ff9470', '#cf96ff', '#efcd6b', '#f280a3'];
 // Derived from the typed fighter definitions, which are the single source of truth for gameplay numbers.
 export const SPECIAL_NAMES = FIGHTERS.map(f => f.moves.special.name);

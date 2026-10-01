@@ -1,6 +1,6 @@
 # Arena Edition validation
 
-> This note records the original Arena Edition release. The gameplay pass that followed (physics, grabs and throws, six distinct move sets, combos, practice tools, CPU) has its own validation results in [arena-gameplay-pass.md](arena-gameplay-pass.md).
+> This note records the original Arena Edition release. The gameplay pass that followed (physics, grabs and throws, six distinct move sets, combos, practice tools, CPU) has its own validation results in [arena-gameplay-pass.md](arena-gameplay-pass.md). The graphics pass after that (the surface-flicker fix, lighting, arenas, fighters, effects, menu and HUD, quality presets) is documented, with its measurements and test results, in [arena-graphics.md](arena-graphics.md).
 
 Built from upstream `595f6d4`, validated September 25, 2026.
 

@@ -19,6 +19,10 @@ async function match(page: Page) {
   await app(page); await page.click('#enter'); await page.selectOption('#mode', 'versus'); await page.click('#fight');
   await page.evaluate(() => { (window as any).__arena.sim.countdown = 0; });
 }
+/** Holds a direction for a few ticks on both sides of a button press, so a tick between the two key-downs cannot consume it early. */
+async function chord(page: Page, hold: string, press: string) {
+  await page.keyboard.down(hold); await page.waitForTimeout(60); await page.keyboard.press(press); await page.waitForTimeout(60); await page.keyboard.up(hold);
+}
 async function closeRange(page: Page) {
   await page.evaluate(() => {
     const a = (window as any).__arena, [p1, p2] = a.sim.fighters;
@@ -47,10 +51,14 @@ test('real keyboard movement, double jump, melee and P2 controls', async ({ page
   await page.keyboard.down('d');
   await expect.poll(() => page.evaluate(() => (window as any).__arena.sim.fighters[0].x)).toBeGreaterThan(before + 0.5);
   await page.keyboard.up('d');
-  await page.keyboard.press('w');
-  await expect.poll(() => page.evaluate(() => (window as any).__arena.sim.fighters[0].jumps)).toBe(1);
-  await page.keyboard.press('w');
-  await expect.poll(() => page.evaluate(() => (window as any).__arena.sim.fighters[0].jumps)).toBe(2);
+  // Log each jump as the simulation performs it (with the jump count it reaches). Polling the count instead can miss a whole
+  // jump: the fighter is airborne for only about half a second, and a slow round trip can fall on either side of it.
+  await page.evaluate(() => {
+    const a = (window as any).__arena, emit = a.sim.emit.bind(a.sim); (window as any).__jumpLog = [];
+    a.sim.emit = (type: string, f: any, ...rest: any[]) => { if (type === 'jump' && f.slot === 0) (window as any).__jumpLog.push(f.jumps); emit(type, f, ...rest); };
+  });
+  await page.keyboard.press('w'); await page.waitForTimeout(150); await page.keyboard.press('w');
+  await expect.poll(() => page.evaluate(() => (window as any).__jumpLog)).toEqual([1, 2]);
   await closeRange(page); await page.keyboard.press('v');
   await expect.poll(() => page.evaluate(() => (window as any).__arena.sim.fighters[1].damage)).toBeGreaterThan(0);
   await page.screenshot({ path: info.outputPath('hit.png') });
@@ -70,7 +78,7 @@ test('special projectile and rising recovery respond to actual key combinations'
       emit(type, f, ...rest);
     };
   });
-  await page.keyboard.down('w'); await page.keyboard.press('b'); await page.keyboard.up('w');
+  await chord(page, 'w', 'b');
   // Assert the launch impulse when the move starts; by the next screenshot/IPC round-trip
   // software-rendered CI may already have carried the fighter past the jump apex.
   await expect.poll(() => page.evaluate(() => (window as any).__recoveryVelocity ?? 0)).toBeGreaterThan(0.35);
@@ -140,18 +148,19 @@ test('synthetic standard controller movement and button edges route to both slot
   await expect.poll(() => page.evaluate(() => (window as any).__arena.sim.fighters[0].damage)).toBeGreaterThan(0);
 });
 
-test('window blur pauses, and repeated stage changes release GPU resources', async ({ page }) => {
+test('window blur pauses, and repeated stage and roster changes reach a steady resource count', async ({ page }) => {
   await match(page);
   await page.evaluate(() => window.dispatchEvent(new Event('blur'))); await expect(page.locator('#resume')).toBeVisible(); await page.click('#resume');
-  await page.evaluate(() => { (window as any).__arena.launch({ fighters: [0, 1], stage: 0, mode: 'versus' }); });
-  await page.waitForFunction(() => (window as any).__arena.sim.tick > 2);
-  const before = await page.evaluate(() => (window as any).__arena.view.stats);
-  for (let i = 0; i < 6; i++) {
-    await page.evaluate(i => { (window as any).__arena.launch({ fighters: [i, (i + 1) % 6], stage: i % 3, mode: 'versus' }); }, i);
-    await page.waitForFunction(() => (window as any).__arena.sim.tick > 2);
-  }
-  await page.evaluate(() => { (window as any).__arena.launch({ fighters: [0, 1], stage: 0, mode: 'versus' }); });
-  await page.waitForFunction(() => (window as any).__arena.sim.tick > 2);
+  // Arenas are built once and kept (three at most), so counts rise during the first pass and then stay flat however long
+  // the player keeps changing arena and roster. That plateau, not "dispose every match", is what bounds GPU memory.
+  const cycle = async () => {
+    for (let i = 0; i < 6; i++) {
+      await page.evaluate(i => { (window as any).__arena.launch({ fighters: [i, (i + 1) % 6], stage: i % 3, mode: 'versus' }); }, i);
+      await page.waitForFunction(() => (window as any).__arena.sim.tick > 2);
+    }
+  };
+  await cycle(); const warm = await page.evaluate(() => (window as any).__arena.view.stats);
+  await cycle(); await cycle(); await cycle();
   const after = await page.evaluate(() => (window as any).__arena.view.stats);
-  expect(after.geometries).toBeLessThanOrEqual(before.geometries + 2); expect(after.textures).toBeLessThanOrEqual(before.textures + 1);
+  expect(after.geometries).toBe(warm.geometries); expect(after.textures).toBe(warm.textures);
 });
