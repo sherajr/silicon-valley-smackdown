@@ -11,6 +11,12 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'server/**/*.test.ts', 'shared/**/*.test.ts'],
+  },
+  server: {
+    proxy: {
+      '/ws': { target: 'ws://127.0.0.1:8787', ws: true },
+      '/health': 'http://127.0.0.1:8787',
+    },
   },
 });

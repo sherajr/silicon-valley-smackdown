@@ -10,6 +10,7 @@ await mkdir(output, { recursive: true });
 // A single IIFE, with no module imports, fetches, or external assets. file:// works on Windows.
 await build({
   configFile: false, root, publicDir: false,
+  define: { 'import.meta.env.VITE_PORTABLE': JSON.stringify('1') },
   build: {
     outDir: temporary, emptyOutDir: true, target: 'es2020', cssCodeSplit: false,
     lib: { entry: path.join(root, 'src/arena/portable.ts'), name: 'SVSArena', formats: ['iife'], fileName: 'arena' },

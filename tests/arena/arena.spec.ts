@@ -131,7 +131,10 @@ test('portable file has no remote dependencies and works with network blocked', 
   const remote: string[] = [], errors: string[] = [];
   page.on('request', r => { if (/^https?:/.test(r.url())) remote.push(r.url()); }); page.on('pageerror', e => errors.push(e.message));
   await page.route(/^https?:\/\//, route => route.abort());
-  await app(page); await page.click('#enter'); await page.click('#fight');
+  await app(page);
+  await expect(page.locator('#online')).toHaveCount(0);
+  expect(await page.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute('content')).toContain("connect-src 'none'");
+  await page.click('#enter'); await page.click('#fight');
   await expect(page.locator('#arena-canvas')).toBeVisible();
   await page.waitForFunction(() => (window as any).__arena.sim.tick > 10);
   expect(remote).toEqual([]); expect(errors).toEqual([]);

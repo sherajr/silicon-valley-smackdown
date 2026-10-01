@@ -14,6 +14,8 @@ import { noInput } from './controls';
 import type { Controls } from './controls';
 import { cpuControls } from './cpu';
 import type { CpuState } from './cpu';
+import { applySnapshot, buildSnapshot, hashSnapshot } from './snapshot';
+import type { SimSnapshot } from './snapshot';
 
 export { noInput };
 export type { Controls, Move, MoveId };
@@ -730,4 +732,16 @@ export class ArenaSim {
     }
     this.shots = []; this.freeze = 0;
   }
+
+  /**
+   * Gameplay state before the next `step`. Definitions are reattached on load, so this is safe to keep
+   * and restore across rollback. Presentation (audio, particles, camera) is not part of it.
+   */
+  save(): SimSnapshot { return buildSnapshot(this, { rng: this.rng, serial: this.serial, itemClock: this.itemClock }); }
+  load(snap: SimSnapshot) {
+    const hidden = applySnapshot(this, snap);
+    this.rng = hidden.rng; this.serial = hidden.serial; this.itemClock = hidden.itemClock;
+  }
+  /** Checksum of the full gameplay state, not just positions and damage. */
+  hashState(): string { return hashSnapshot(this.save()); }
 }
