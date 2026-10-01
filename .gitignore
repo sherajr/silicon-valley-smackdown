@@ -13,6 +13,9 @@ dist-ssr
 dist-server
 release/
 *.local
+.env
+.env.*
+!.env.example
 
 # Test artifacts
 test-results
