@@ -145,6 +145,12 @@ function originAllowed(req: IncomingMessage, allowed: string[]): boolean {
 }
 
 function clientIp(req: IncomingMessage): string {
+  // Fly.io's proxy sets Fly-Client-IP itself; X-Forwarded-For there keeps whatever the client sent first.
+  if (process.env.TRUST_PROXY === 'fly') {
+    const fly = req.headers['fly-client-ip'];
+    const ip = (Array.isArray(fly) ? fly[0] : fly)?.trim();
+    if (ip) return ip;
+  }
   if (process.env.TRUST_PROXY === '1') {
     const forwarded = req.headers['x-forwarded-for'];
     const first = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(',')[0]?.trim();
