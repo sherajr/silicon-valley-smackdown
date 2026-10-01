@@ -25,7 +25,9 @@
     "test:desktop": "playwright test --config playwright.desktop.config.ts",
     "build:portable": "npm run typecheck && node scripts/build-portable.mjs",
     "package:zip": "npm run build:portable && node scripts/package-arena.mjs",
-    "test:arena": "playwright test --config playwright.arena.config.ts"
+    "test:arena": "playwright test --config playwright.arena.config.ts",
+    "evidence:arena": "node scripts/arena-evidence.mjs",
+    "perf:arena": "node scripts/arena-perf.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

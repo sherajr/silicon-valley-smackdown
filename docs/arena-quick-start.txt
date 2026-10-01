@@ -84,7 +84,10 @@ solid: you cannot jump up through it or walk into its sides. Upper platforms are
 one-way.
 
 PERFORMANCE / TROUBLESHOOTING
-For slower integrated graphics, uncheck High quality shadows in match setup.
+Graphics presets (match setup > Graphics): High is the full look; Balanced uses smaller shadows
+and lighter effects; Performance draws without real shadows or post effects. If the game runs
+slowly, choose Balanced or Performance. Reduced motion and Camera shake can be switched
+separately. Your choice is remembered.
 If the screen reports WebGL unavailable, enable browser hardware acceleration.
 Click into the game to enable audio. Browser/OS autoplay rules may delay audio.
 The game pauses when you switch windows, so you do not lose a stock while away.
