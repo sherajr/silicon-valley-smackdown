@@ -111,6 +111,45 @@ describe('rollback session', () => {
     }
   });
 
+  it('sends a checksum for each shared frame on the schedule exactly once, and both clients pick the same frames', () => {
+    const { make } = fresh(6);
+    const a = new RollbackSession({ sim: make(), localSlot: 0, matchId: 'm', epoch: 1, stallMs: 60_000, now: () => 0 });
+    const b = new RollbackSession({ sim: make(), localSlot: 1, matchId: 'm', epoch: 1, stallMs: 60_000, now: () => 0 });
+    const sent: Record<'a' | 'b', { frame: number; hash: string }[]> = { a: [], b: [] };
+    const pending: { at: number; session: RollbackSession; frame: number; input: WireInput }[] = [];
+    let time = 0;
+    const pump = (session: RollbackSession, slot: number, name: 'a' | 'b', latency: number) => {
+      if (session.wantsLocal()) session.submitLocal(script(session.nextLocalFrame, slot));
+      session.stepOne();
+      const other = session === a ? b : a;
+      for (const packet of session.takeOutbound()) {
+        session.ackLocal(packet.frame, packet.input);
+        pending.push({ at: time + latency, session: other, frame: packet.frame, input: packet.input });
+      }
+      const hash = session.takeHash(); if (hash) sent[name].push(hash);
+    };
+    for (; time < 3000; time += 4) {
+      if (time % 16 === 0) pump(a, 0, 'a', 30);
+      if (time % 20 === 0) pump(b, 1, 'b', 45);
+      for (const item of pending) if (item.at <= time) item.session.pushRemote(item.frame, item.input);
+    }
+    expect(a.interrupted).toBeNull(); expect(b.interrupted).toBeNull();
+    expect(a.confirmed).toBeGreaterThan(120);
+    for (const list of [sent.a, sent.b]) {
+      const frames = list.map(h => h.frame);
+      expect(frames.every(f => f % a.hashInterval === 0)).toBe(true);
+      expect(new Set(frames).size).toBe(frames.length);                     // never the same frame twice
+      expect(frames).toEqual([...frames].sort((x, y) => x - y));
+    }
+    // Both sides checksum the same frames, so every one can be compared, and they agree.
+    const theirs = new Map(sent.b.map(h => [h.frame, h.hash]));
+    const shared = sent.a.filter(h => theirs.has(h.frame));
+    expect(shared.length).toBeGreaterThan(3);
+    for (const h of shared) expect(theirs.get(h.frame)).toBe(h.hash);
+    // Far fewer than one checksum per frame: the old schedule sent one per confirmed advance, about 60 a second.
+    expect(sent.a.length).toBeLessThanOrEqual(Math.floor(a.confirmed / a.hashInterval) + 1);
+  });
+
   it('converges when the two clients advance on different schedules', () => {
     const frames = 70;
     const truth = offline(frames, 4);

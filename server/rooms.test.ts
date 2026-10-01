@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 import { gameplayFingerprint } from '../shared/fingerprint.ts';
@@ -174,6 +177,44 @@ describe('room protocol', () => {
     expect(hub.roomCount).toBe(0);
   });
 
+  it('never rate limits a client playing at full speed, and relays every one of its inputs', () => {
+    const hub = new RoomHub();
+    let clock = 1_000_000; hub.now = () => clock;
+    const host = player(hub), guest = player(hub, '10.0.0.9');
+    hub.handle(host, { t: 'create' });
+    hub.handle(guest, { t: 'join', code: roomCode(host).code });
+    hub.handle(host, { t: 'ready', rev: roomCode(host).rev, ready: true });
+    hub.handle(guest, { t: 'ready', rev: roomCode(guest).rev, ready: true });
+    const match = messages(host, 'prepare').at(-1)!.match;
+    hub.handle(host, { t: 'loaded', matchId: match.matchId }); hub.handle(guest, { t: 'loaded', matchId: match.matchId });
+    // Ten seconds of the busiest honest client: an input batch AND a checksum on every 60 Hz frame (the real client sends
+    // a checksum only every HASH_INTERVAL frames), plus a heartbeat. The old limit of 80 messages a second dropped input
+    // batches from exactly this traffic; a dropped batch is never resent, so the match stalled.
+    for (let n = 0; n < 600; n++) {
+      clock += 1000 / 60;
+      for (const conn of [host, guest]) {
+        hub.handle(conn, { t: 'inputs', matchId: match.matchId, epoch: match.epoch, frames: [{ n, i: neutralWire() }] });
+        hub.handle(conn, { t: 'hash', matchId: match.matchId, epoch: match.epoch, frame: n, hash: 'same' });
+        if (n % 300 === 0) hub.handle(conn, { t: 'ping', id: n, clientTime: clock });
+      }
+    }
+    expect(messages(host, 'error')).toEqual([]); expect(messages(guest, 'error')).toEqual([]);
+    const relayed = new Set(messages(guest, 'inputs').filter(m => m.slot === 0).flatMap(m => m.frames.map(f => f.n)));
+    expect(relayed.size).toBe(600);
+    expect(messages(guest, 'inputs').at(-1)?.ack).toBe(600);
+    // A flood is still refused.
+    for (let i = 0; i < 400; i++) hub.handle(host, { t: 'ping', id: i, clientTime: clock });
+    expect(messages(host, 'error').some(e => e.code === 'rate')).toBe(true);
+  });
+
+  it('keeps nothing in memory for a connection that delivers to a socket', () => {
+    const hub = new RoomHub();
+    const conn = openConn(); const seen: ServerMessage[] = []; conn.deliver = m => { seen.push(m); };
+    hub.hello(conn, 1, fingerprint); hub.handle(conn, { t: 'create' });
+    for (let i = 0; i < 50; i++) hub.handle(conn, { t: 'ping', id: i, clientTime: 0 });
+    expect(seen.length).toBeGreaterThan(50); expect(conn.out).toEqual([]);
+  });
+
   it('rate limits creates and oversized payloads without dropping another room', () => {
     const hub = new RoomHub();
     const keeper = player(hub, '10.1.0.1');
@@ -193,6 +234,22 @@ describe('room protocol', () => {
 describe('websocket server', () => {
   const closers: (() => Promise<void>)[] = [];
   afterEach(async () => { while (closers.length) await closers.pop()!(); });
+
+  it('answers a malformed address with 400 instead of crashing, and never serves a file outside the game folder', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'svs-static-'));
+    fs.mkdirSync(path.join(root, 'dist')); fs.mkdirSync(path.join(root, 'dist-server'));
+    fs.writeFileSync(path.join(root, 'dist', 'index.html'), '<!doctype html><title>game</title>');
+    fs.writeFileSync(path.join(root, 'dist-server', 'secret.js'), 'SECRET');
+    const server = await startOnlineServer({ host: '127.0.0.1', port: 0, staticDir: path.join(root, 'dist'), allowedOrigins: [] });
+    closers.push(async () => { await server.close(); fs.rmSync(root, { recursive: true, force: true }); });
+    expect((await fetch(`${server.url}/%E0%A4%A`)).status).toBe(400);
+    expect((await fetch(`${server.url}/health`)).status).toBe(200);              // still up
+    for (const probe of ['/..%2fdist-server%2fsecret.js', '/..%5cdist-server%5csecret.js', '/%2e%2e/dist-server/secret.js']) {
+      const res = await fetch(`${server.url}${probe}`);
+      expect(await res.text(), probe).not.toContain('SECRET');
+    }
+    expect(await (await fetch(`${server.url}/`)).text()).toContain('game');
+  });
 
   it('completes a real socket handshake and serves health without room codes', async () => {
     const server = await startOnlineServer({ host: '127.0.0.1', port: 0, staticDir: null, allowedOrigins: ['http://127.0.0.1'] });

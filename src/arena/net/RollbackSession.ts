@@ -15,7 +15,7 @@ import { hashSnapshot } from '../snapshot';
 import { EventJournal } from './EventJournal';
 import type { JournalEntry } from './EventJournal';
 import {
-  HISTORY_FRAMES, INPUT_DELAY, MAX_FRAME, PREDICTION_LIMIT, STALL_MS,
+  HASH_INTERVAL, HISTORY_FRAMES, INPUT_DELAY, MAX_FRAME, PREDICTION_LIMIT, STALL_MS,
   controlsFromWire, sameWire, wireFromControls,
 } from '../../../shared/onlineProtocol';
 import type { WireInput } from '../../../shared/onlineProtocol';
@@ -65,12 +65,17 @@ export class RollbackSession {
   private remoteHashes = new Map<number, string>();
   private lastHashSent = -1;
   private waitingSince: number | null = null;
+  /** Inputs are only ever added, never removed, so these counts can advance in place instead of rescanning from frame 0. */
+  private remoteNext = 0;
+  private ackNext = 0;
+  readonly hashInterval: number;
   private now: () => number;
 
   constructor(options: {
     sim: ArenaSim; localSlot: 0 | 1; matchId: string; epoch: number;
-    delay?: number; predictionLimit?: number; history?: number; stallMs?: number; now?: () => number;
+    delay?: number; predictionLimit?: number; history?: number; stallMs?: number; now?: () => number; hashInterval?: number;
   }) {
+    this.hashInterval = Math.max(1, options.hashInterval ?? HASH_INTERVAL);
     this.sim = options.sim;
     this.localSlot = options.localSlot;
     this.matchId = options.matchId;
@@ -190,9 +195,10 @@ export class RollbackSession {
     return snap ? hashSnapshot(snap) : null;
   }
 
+  /** The checksum for the newest confirmed frame on the shared schedule (multiples of `hashInterval`), once each. */
   takeHash(): { frame: number; hash: string } | null {
-    if (this.confirmed <= this.lastHashSent) return null;
-    const frame = this.confirmed;
+    const frame = Math.floor(this.confirmed / this.hashInterval) * this.hashInterval;
+    if (frame <= this.lastHashSent) return null;
     const hash = this.hashAt(frame);
     if (!hash) return null;
     this.lastHashSent = frame;
@@ -232,20 +238,17 @@ export class RollbackSession {
   }
 
   private remoteContiguous(): number {
-    let n = 0;
-    while (this.remote[n]) n++;
-    return n;
+    while (this.remote[this.remoteNext]) this.remoteNext++;
+    return this.remoteNext;
   }
 
   private localAckContiguous(): number {
-    let n = 0;
-    while (this.localAck[n]) n++;
-    return n;
+    while (this.localAck[this.ackNext]) this.ackNext++;
+    return this.ackNext;
   }
 
   private noteAuthority() {
-    let n = 0;
-    while (this.localAck[n] && this.remote[n]) n++;
+    const n = Math.min(this.remoteContiguous(), this.localAckContiguous());
     if (n > this.confirmed) {
       this.confirmed = n;
       for (const frame of this.remoteHashes.keys()) this.compareHash(frame);

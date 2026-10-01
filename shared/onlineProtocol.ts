@@ -21,6 +21,11 @@ export const MAX_FRAME = 60 * 60 * 10;
 export const REJOIN_GRACE_MS = 10_000;
 export const LOBBY_TTL_MS = 10 * 60 * 1000;
 export const HEARTBEAT_MS = 5_000;
+/**
+ * Clients exchange a checksum of the confirmed state on every frame that is a multiple of this. Both sides check the same
+ * frames, twice a second, which keeps checksum traffic well under the server's per-connection message limit.
+ */
+export const HASH_INTERVAL = 30;
 /** Wall-clock wait after prediction is exhausted before the round is interrupted. */
 export const STALL_MS = 3_000;
 export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';

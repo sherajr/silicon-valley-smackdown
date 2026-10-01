@@ -17,7 +17,12 @@ import type {
 const MAX_ROOMS = 200;
 const CREATE_LIMIT = 8;
 const JOIN_LIMIT = 20;
-const MESSAGE_LIMIT = 80;
+/**
+ * Messages per connection per second. A playing client sends one input batch per rendered frame that has new input
+ * (at most about 60 a second), a checksum every HASH_INTERVAL frames and a heartbeat ping, so 150 leaves wide headroom.
+ * An input batch over the limit is dropped and never resent, which stalls the match, so this must stay above that.
+ */
+const MESSAGE_LIMIT = 150;
 const FUTURE_SLACK = PREDICTION_LIMIT + INPUT_DELAY + 60;
 
 export interface Conn {
@@ -33,6 +38,7 @@ export interface Conn {
   msgCount: number;
   msgReset: number;
   welcomed: boolean;
+  /** Messages for a connection with no socket attached (unit tests). A live connection delivers instead and keeps nothing. */
   out: ServerMessage[];
   deliver?: (message: ServerMessage) => void;
 }
@@ -48,6 +54,8 @@ interface Seat {
   result: { frame: number; winner: -1 | 0 | 1; hash: string } | null;
   rematch: boolean;
   inputs: Map<number, WireInput>;
+  /** Frames 0..next-1 are all present in `inputs`. Advanced as inputs arrive, never rescanned from frame 0. */
+  next: number;
   hashes: Map<number, string>;
 }
 
@@ -148,6 +156,8 @@ export class RoomHub {
       }
       if (this.rooms.has(room.code) && room.status === 'lobby' && now - room.activity >= this.lobbyTtlMs) this.closeRoom(room, 'expired');
     }
+    // One entry per address that ever created or joined; forget the ones whose window has passed.
+    for (const map of [this.creates, this.joins]) for (const [ip, rate] of map) if (now >= rate.reset) map.delete(ip);
   }
 
   get roomCount() { return this.rooms.size; }
@@ -233,7 +243,7 @@ export class RoomHub {
     if (epoch !== room.epoch) { this.fail(conn, 'wrong-state'); return; }
     const seat = room.seats[conn.slot];
     const fresh: InputFrame[] = [];
-    const peerLatest = contiguous(room.seats[1 - conn.slot].inputs);
+    const peerLatest = room.seats[1 - conn.slot].next;
     for (const frame of frames) {
       if (frame.n > peerLatest + FUTURE_SLACK) { this.fail(conn, 'bad-message'); return; }
       const existing = seat.inputs.get(frame.n);
@@ -244,9 +254,10 @@ export class RoomHub {
       seat.inputs.set(frame.n, frame.i);
       fresh.push(frame);
     }
+    while (seat.inputs.has(seat.next)) seat.next++;
     this.touch(room);
     if (!fresh.length) fresh.push(frames[0]);
-    const ack = contiguous(seat.inputs);
+    const ack = seat.next;
     const relay = { t: 'inputs' as const, matchId, epoch, slot: conn.slot, frames: fresh, ack };
     this.each(room, other => { if (other.conn?.connected) this.send(other.conn, relay); });
   }
@@ -455,6 +466,7 @@ export class RoomHub {
       seat.loaded = false;
       seat.result = null;
       seat.inputs = new Map();
+      seat.next = 0;
       seat.hashes = new Map();
     }
   }
@@ -497,8 +509,8 @@ export class RoomHub {
   }
 
   private send(conn: Conn, message: ServerMessage) {
-    conn.out.push(message);
-    conn.deliver?.(message);
+    if (conn.deliver) conn.deliver(message);
+    else conn.out.push(message);
   }
 
   private allowMessage(conn: Conn): boolean {
@@ -518,13 +530,7 @@ export class RoomHub {
 }
 
 function emptySeat(fighter: number): Seat {
-  return { conn: null, fighter, ready: false, loaded: false, disconnectAt: null, result: null, rematch: false, inputs: new Map(), hashes: new Map() };
-}
-
-function contiguous(inputs: Map<number, WireInput>): number {
-  let n = 0;
-  while (inputs.has(n)) n++;
-  return n;
+  return { conn: null, fighter, ready: false, loaded: false, disconnectAt: null, result: null, rematch: false, inputs: new Map(), next: 0, hashes: new Map() };
 }
 
 function newCode(): string {

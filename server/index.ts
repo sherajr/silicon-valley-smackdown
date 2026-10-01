@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { RoomHub, openConn, type Conn } from './rooms.ts';
-import { MAX_MESSAGE_BYTES } from '../shared/onlineProtocol.ts';
+import { HEARTBEAT_MS, MAX_MESSAGE_BYTES } from '../shared/onlineProtocol.ts';
 
 export interface ServerOptions {
   port?: number;
@@ -41,6 +41,13 @@ export async function startOnlineServer(options: ServerOptions = {}) {
   const sockets = new Set<WebSocket>();
 
   const http = createServer((req, res) => {
+    try { handleHttp(req, res); }
+    catch (error) {
+      console.error('request failed', error instanceof Error ? error.message : 'error');
+      if (!res.headersSent) sendText(res, 500, 'Server error'); else res.destroy();
+    }
+  });
+  const handleHttp = (req: IncomingMessage, res: ServerResponse) => {
     const url = new URL(req.url ?? '/', 'http://127.0.0.1');
     if (req.method === 'GET' && (url.pathname === `${base}/health` || url.pathname === '/health')) {
       const body = JSON.stringify({ ok: true, rooms: hub.roomCount });
@@ -50,7 +57,7 @@ export async function startOnlineServer(options: ServerOptions = {}) {
     }
     if (!staticDir || req.method !== 'GET' && req.method !== 'HEAD') { sendText(res, 404, 'Not found'); return; }
     serveStatic(res, staticDir, base, url.pathname, req.method === 'HEAD');
-  });
+  };
 
   const wss = new WebSocketServer({ noServer: true, perMessageDeflate: false, maxPayload: MAX_MESSAGE_BYTES });
   http.on('upgrade', (req, socket, head) => {
@@ -64,8 +71,22 @@ export async function startOnlineServer(options: ServerOptions = {}) {
     wss.handleUpgrade(req, socket, head, ws => { wss.emit('connection', ws, req); });
   });
 
+  // A connection that dies without a close (Wi-Fi drop, sleeping laptop) still looks connected, and the room would refuse
+  // that player's resume. Ping every socket; one that has not answered the previous ping is closed as a disconnect.
+  const alive = new WeakMap<WebSocket, boolean>();
+  const heartbeat = setInterval(() => {
+    for (const ws of sockets) {
+      if (alive.get(ws) === false) { ws.terminate(); continue; }
+      alive.set(ws, false);
+      try { ws.ping(); } catch { /* closing */ }
+    }
+  }, HEARTBEAT_MS * 2);
+  heartbeat.unref?.();
+
   wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
     sockets.add(ws);
+    alive.set(ws, true);
+    ws.on('pong', () => alive.set(ws, true));
     const conn = openConn(clientIp(req));
     conn.deliver = message => {
       if (ws.readyState !== ws.OPEN) return;
@@ -96,6 +117,7 @@ export async function startOnlineServer(options: ServerOptions = {}) {
     hub,
     close: async () => {
       clearInterval(timer);
+      clearInterval(heartbeat);
       for (const ws of sockets) ws.close();
       wss.close();
       await new Promise<void>(resolve => http.close(() => resolve()));
@@ -135,9 +157,12 @@ function serveStatic(res: ServerResponse, root: string, base: string, pathname: 
   let rel = pathname;
   if (base && rel.startsWith(base)) rel = rel.slice(base.length);
   if (!rel.startsWith('/')) rel = `/${rel}`;
-  const decoded = decodeURIComponent(rel);
-  const file = path.resolve(root, `.${decoded}`);
-  if (!file.startsWith(path.resolve(root))) { sendText(res, 403, 'Forbidden'); return; }
+  // A malformed escape (`/%E0%A4%A`) makes decodeURIComponent throw; uncaught, that would end every room on the server.
+  let decoded: string;
+  try { decoded = decodeURIComponent(rel); } catch { sendText(res, 400, 'Bad request'); return; }
+  const top = path.resolve(root), file = path.resolve(top, `.${decoded}`);
+  // Compare against the root plus a separator: a bare prefix test would let `/..%2fdist-server/...` reach a sibling folder.
+  if (file !== top && !file.startsWith(top + path.sep)) { sendText(res, 403, 'Forbidden'); return; }
   let target = file;
   if (!existsSync(target) || !statSync(target).isFile()) {
     const fallback = path.join(root, 'index.html');
@@ -147,7 +172,7 @@ function serveStatic(res: ServerResponse, root: string, base: string, pathname: 
   const ext = path.extname(target).toLowerCase();
   res.writeHead(200, { 'content-type': TYPES[ext] ?? 'application/octet-stream', 'cache-control': ext === '.html' ? 'no-cache' : 'public, max-age=3600' });
   if (head) { res.end(); return; }
-  createReadStream(target).pipe(res);
+  createReadStream(target).on('error', () => res.destroy()).pipe(res);
 }
 
 function sendText(res: ServerResponse, status: number, body: string) {

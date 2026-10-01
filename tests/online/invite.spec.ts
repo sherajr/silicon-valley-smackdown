@@ -2,7 +2,10 @@ import { expect, test, type Browser, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const evidence = path.resolve('docs/evidence/online');
+// Screenshots for docs/evidence/online are only rewritten on request (SVS_EVIDENCE=1); an ordinary test run leaves the
+// committed pictures alone. Otherwise they go to the test's own output folder.
+const writeEvidence = process.env.SVS_EVIDENCE === '1';
+const evidence = writeEvidence ? path.resolve('docs/evidence/online') : path.resolve('test-results/online-evidence');
 fs.mkdirSync(evidence, { recursive: true });
 
 function watch(page: Page, errors: string[]) {
